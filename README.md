@@ -30,6 +30,20 @@ toolbox/
     └── install.sh / 启动.sh  # Installer & launcher
 ```
 
+## Repository Layout (GitHub)
+
+The three repositories share the same codebase — this is intentional:
+
+- **[Tokooy/toolbox](https://github.com/Tokooy/toolbox)** — the **main monorepo**: the complete
+  integrated project (all tools + the `hub` layer). Start here.
+- **[Tokooy/us-treasury-yields](https://github.com/Tokooy/us-treasury-yields)** — Tool 1's
+  standalone repo (the yields dashboard itself, usable on its own).
+- **[Tokooy/QRcode_mouthly_work](https://github.com/Tokooy/QRcode_mouthly_work)** — Tool 2's
+  standalone repo (the QR generator itself, usable on its own).
+
+The standalone repos are kept in sync with the copies inside `toolbox/` — no stale duplicates.
+`toolbox/` is the integrated release; the standalone repos are the individual project entries.
+
 ## Quick Start
 
 ```bash

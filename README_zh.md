@@ -29,6 +29,20 @@ toolbox/
     └── install.sh / 启动.sh  # 安装与启动
 ```
 
+## GitHub 仓库关系
+
+三个仓库共享同一份代码，这是有意为之：
+
+- **[Tokooy/toolbox](https://github.com/Tokooy/toolbox)** —— **主仓库（Monorepo）**：整合后的
+  完整项目（全部工具 + `hub` 整合层）。从这里开始。
+- **[Tokooy/us-treasury-yields](https://github.com/Tokooy/us-treasury-yields)** —— 工具一的
+  独立仓库（美债看板本体，可单独使用）。
+- **[Tokooy/QRcode_mouthly_work](https://github.com/Tokooy/QRcode_mouthly_work)** —— 工具二的
+  独立仓库（二维码生成器本体，可单独使用）。
+
+独立仓库与 `toolbox/` 内的副本保持同步，不存在过时的重复副本。
+`toolbox/` 是整合发布版，独立仓库是各项目的独立入口。
+
 ## 快速开始
 
 ```bash

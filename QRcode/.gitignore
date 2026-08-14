@@ -1,0 +1,9 @@
+# 敏感数据：内部设备巡检清单，不推送到公开仓库
+input/
+
+# Python
+__pycache__/
+*.pyc
+
+# 系统文件
+.DS_Store

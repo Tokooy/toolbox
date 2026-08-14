@@ -1,0 +1,9 @@
+name: self_ag
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - qrcode
+  - pillow
+  - openpyxl

@@ -1,0 +1,14 @@
+{
+  "source": "FRED (Federal Reserve Bank of St. Louis)",
+  "series": [
+    "DGS2",
+    "DGS10",
+    "DGS30"
+  ],
+  "start_date": "2020-01-01",
+  "last_date": "2026-08-12",
+  "rows": 1725,
+  "mode": "incremental",
+  "new_dates": 0,
+  "updated_at": "2026-08-14T05:23:02Z"
+}

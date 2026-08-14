@@ -1,0 +1,11 @@
+# Python
+__pycache__/
+*.pyc
+
+# QRcode 敏感输入与生成产物
+QRcode/input/
+QRcode/output/
+QRcode/qrcodes/
+
+# 旧文件备份目录
+*_旧文件备份_*/

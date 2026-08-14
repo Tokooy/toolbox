@@ -1,0 +1,7 @@
+# 本项目零第三方依赖 —— 后端为纯 Python 标准库实现（http.server / urllib / csv），
+# 无需 pip 安装任何包，也就不存在依赖冲突问题。
+#
+# 唯一需要联网加载的是前端图表库 ECharts（CDN，浏览器自动加载，与 conda 环境无关）。
+#
+# 抓取 FRED 数据时优先调用系统 curl（Linux / macOS / Windows 10+ 均自带），
+# 用于绕过 FRED 边缘节点（Akamai）对 Python urllib TLS 指纹的黑洞限流。

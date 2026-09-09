@@ -441,6 +441,14 @@ const TreasuryPanel = {
 
     return {
       isActive, state, ICONS, refresh,
+      // 模板中直接裸用这些状态名，必须在此暴露（toRef 保持响应式读写）：
+      // 否则 updateText/dotCls/statsHtml 渲染为空、ref="chartEl" 拿不到 DOM，
+      // echarts.init(null) 抛错导致走势图无法绘制。
+      dotCls: Vue.toRef(state, 'dotCls'),
+      updateText: Vue.toRef(state, 'updateText'),
+      refreshing: Vue.toRef(state, 'refreshing'),
+      statsHtml: Vue.toRef(state, 'statsHtml'),
+      chartEl,
     };
   },
 };

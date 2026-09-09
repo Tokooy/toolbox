@@ -917,3 +917,176 @@ body {
   .chart { height: clamp(440px, 52vh, 600px); }
   .stat-value { font-size: 32px; }
 }
+
+/* ============================================================
+   Vue3 界面增量样式
+   ① 二维码：紧凑上传/生成（高度约为原版 1/2）
+   ② 任务进度条
+   ③ 结果「每 3 个一组」翻页扫码
+   ============================================================ */
+
+.main { min-width: 0; }   /* 允许 grid 内容收缩，防溢出 */
+
+/* ---- 上传 + 生成：并排两卡片（紧凑） ---- */
+.qr-top {
+  display: grid;
+  grid-template-columns: 1.15fr 1fr;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.qr-cell-card { padding: 14px 16px; }
+.qr-cell-card .card-title { margin-bottom: 10px; }
+
+/* 上传区紧凑版：横向单行，高度约 60px（原 dropzone 128px+ 的一半以下） */
+.dropzone-compact {
+  flex-direction: row;
+  justify-content: flex-start;
+  gap: 12px;
+  min-height: 0;
+  padding: 14px 18px;
+}
+.dropzone-compact .dz-icon { width: 26px; height: 26px; margin-bottom: 0; flex: none; }
+.dz-line {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  min-width: 0;
+}
+.dz-line .dz-main { font-size: 13px; }
+.dz-line .dz-sub { font-size: 11px; }
+
+/* 文件信息条紧凑版 */
+.file-info-compact { margin-top: 0; padding: 8px 12px; }
+
+/* 生成卡：按钮与提示同行，去掉大段留白 */
+.qr-run-row { display: flex; align-items: center; gap: 12px; }
+.qr-run-row .run-hint { margin-top: 0; flex: 1; min-width: 0; }
+.card-tip-tiny { margin: 10px 0 0; font-size: 11.5px; line-height: 1.6; }
+
+/* ---- 结果大卡 ---- */
+.qr-result-card { grid-column: 1 / -1; }
+.qr-result-card .card-title { margin-bottom: 12px; }
+
+/* ---- 任务进度条 ---- */
+.prog { margin-bottom: 12px; }
+.prog-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+.prog-label { color: var(--faint); }
+.prog-num { font-weight: 650; font-variant-numeric: tabular-nums; color: var(--accent); }
+.prog-track {
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+.prog-bar {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #38bdf8, #818cf8);
+  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.prog-bar.running {
+  background: linear-gradient(90deg, #38bdf8 0%, #818cf8 40%, #a78bfa 60%, #38bdf8 100%);
+  background-size: 220% 100%;
+  animation: progslide 1.2s linear infinite;
+}
+@keyframes progslide {
+  from { background-position: 0% 0; }
+  to { background-position: 220% 0; }
+}
+
+/* ---- 分组翻页舞台：上一组 | 3 个 | 下一组 ---- */
+.stage {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 14px;
+  align-items: center;
+}
+.pager-btn {
+  width: 46px;
+  height: 46px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--card);
+  color: var(--muted);
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease, opacity 0.18s ease;
+}
+.pager-btn:hover:not(:disabled) {
+  background: rgba(56, 189, 248, 0.12);
+  border-color: rgba(56, 189, 248, 0.4);
+  color: var(--accent);
+}
+.pager-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+.pager-btn svg { width: 19px; height: 19px; }
+
+.qr-stage {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 18px;
+  min-height: 240px;
+}
+.qr-item {
+  width: 218px;
+  padding: 14px;
+  border-radius: 14px;
+  background: #fff;
+  border: 1px solid var(--border);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+  text-align: center;
+}
+.qr-img { display: block; width: 188px; height: 188px; margin: 0 auto; }
+.qr-code {
+  margin-top: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #0f172a;
+  font-family: "JetBrains Mono", Consolas, monospace;
+  word-break: break-all;
+  line-height: 1.4;
+}
+
+/* 翻页淡入切换 */
+.qrpage-enter-active, .qrpage-leave-active { transition: opacity 0.16s ease, transform 0.16s ease; }
+.qrpage-enter-from { opacity: 0; transform: translateX(12px); }
+.qrpage-leave-to { opacity: 0; transform: translateX(-12px); }
+
+/* ---- 组指示 ---- */
+.page-indicator {
+  margin-top: 12px;
+  text-align: center;
+  font-size: 12.5px;
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- Modal 淡入淡出（Vue transition name="fade"） ---- */
+.fade-enter-active, .fade-leave-active { transition: opacity 0.18s ease; }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
+
+/* 小屏适配 */
+@media (max-width: 1080px) {
+  .qr-stage { flex-wrap: wrap; }
+  .qr-item { width: 200px; }
+  .qr-img { width: 170px; height: 170px; }
+}
+@media (max-width: 640px) {
+  .qr-top { grid-template-columns: 1fr; }
+  .stage { grid-template-columns: 1fr; }
+  .pager-btn { width: 100%; height: 40px; border-radius: 10px; }
+  .qr-stage { gap: 12px; }
+  .qr-item { width: 100%; max-width: 240px; }
+  .qr-img { width: 100%; height: auto; max-width: 190px; margin: 0 auto; }
+}

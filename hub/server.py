@@ -70,6 +70,8 @@ TREASURY_SERVER = ((_MEIPASS_DIR / 'us-treasury-yields' / 'server.py')
                    if FROZEN else (TREASURY_DIR / 'server.py'))
 
 PORT = int(os.environ.get('PORT', '8080'))
+# 监听地址：默认仅本机回环；Docker 部署时设 HOST=0.0.0.0 以便端口映射到外部
+HOST = os.environ.get('HOST', '127.0.0.1')
 
 # --------------------------------------------------------------------------
 # 加载美债模块（原 server.py 只定义数据逻辑与 HTTP Handler，main 不会执行）
@@ -511,7 +513,7 @@ def main():
         d.mkdir(parents=True, exist_ok=True)
 
     try:
-        server = ThreadingHTTPServer(('127.0.0.1', PORT), Handler)
+        server = ThreadingHTTPServer((HOST, PORT), Handler)
     except OSError as exc:
         print(f'\n✗ 启动失败：端口 {PORT} 已被占用（{exc}）')
         print('  可能已有实例在运行。请先关闭旧实例，或设置环境变量 PORT 后重启：')

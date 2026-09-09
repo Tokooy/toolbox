@@ -1,0 +1,21 @@
+# 版本控制与本地环境
+.git/
+.gitignore
+.venv*/
+venv/
+
+# 打包产物与日志（不需要进镜像）
+build/
+dist/
+*.log
+desktop.ini
+Thumbs.db
+
+# Python 缓存
+**/__pycache__/
+**/*.pyc
+
+# 用户数据（二维码输入/输出/缓存）不入镜像 —— 运行时用数据卷挂载
+QRcode/input/
+QRcode/output/
+QRcode/qrcodes/

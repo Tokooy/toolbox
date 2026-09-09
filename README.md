@@ -80,6 +80,48 @@ pyinstaller --clean --noconfirm toolbox.spec
 - See [`toolbox.spec`](toolbox.spec) for details: QR dependencies are bundled, frontend assets
   and helper scripts are embedded, while writable data is redirected next to the exe at runtime
   (never into the read-only `_MEIPASS` temp folder, so nothing is lost on exit).
+### 🔄 Updating Toolbox.exe (important: you MUST rebuild after changing code)
+
+**Why does the exe still show the old behavior after I changed the code?**
+`Toolbox.exe` is a PyInstaller single file: the frontend, backend logic and both tool
+scripts are **baked into the exe at build time** (extracted to a read-only temp folder at
+runtime). Any code you change or pull afterwards never reaches an already-built exe —
+running from source (`python hub/server.py`) and Docker always read the latest files, so
+**only the exe gets stuck on an old version**. If the exe behaves differently from the
+source, compare the exe's modified time with your code change time first — you most likely
+forgot to rebuild.
+
+**Update steps (every time you changed code and want to try it via the exe):**
+
+1. **Quit the running old Toolbox.exe first** (otherwise the exe file is locked and cannot
+   be overwritten): press `Ctrl+C` in its console window, or end the `Toolbox.exe` process
+   in Task Manager;
+2. Pull the latest code: `git pull` (or simply build from your local, modified source);
+3. Rebuild (either way; needs Python 3.8+ locally, first run installs dependencies):
+   ```bat
+   :: Option A: double-click build_windows.bat in the repo root
+   :: Option B: run manually in a terminal
+   python -m pip install pyinstaller "qrcode[pil]" pillow openpyxl
+   pyinstaller --clean --noconfirm toolbox.spec
+   ```
+4. The new artifact is `dist\Toolbox.exe`: use it to **overwrite the old exe** (it is a
+   good idea to rename the old exe first as a backup);
+5. Double-click the new exe to verify. **Your data is not affected**: QR input/output and
+   the treasury cache live in persistent folders next to the exe
+   (`QRcode/input`, `QRcode/output`, `us-treasury-yields/data`, …), so overwriting the exe
+   never clears or loses any data.
+
+**FAQ**
+
+- Exe unchanged after code changes → you forgot to rebuild; just re-run step 3;
+- “File in use / cannot write” when overwriting the exe → quit the running old
+  Toolbox.exe first, then overwrite;
+- Page still shows the old UI → assets carry a `?v=` version and the server sends
+  `Cache-Control: no-store`, so the new files load automatically; if it still looks stale,
+  force-refresh once with `Ctrl+F5`;
+- The new exe is quarantined/deleted by security software → single-file exes built with
+  PyInstaller are sometimes false-flagged; see the FAQ below and check on VirusTotal
+  before adding an exception.
 
 ## 🐧 Linux / macOS (original flow, still supported)
 

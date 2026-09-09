@@ -78,6 +78,41 @@ pyinstaller --clean --noconfirm toolbox.spec
 - 打包细节见 [`toolbox.spec`](toolbox.spec)：二维码依赖内嵌、前端与脚本资源内置，
   数据目录在运行时外置到 exe 旁（避免写入 exe 临时解包目录导致数据丢失）。
 
+### 🔄 更新 Toolbox.exe（重要：改完代码必须重新打包才生效）
+
+**为什么改了代码，双击 exe 却还是老样子？**
+`Toolbox.exe` 是 PyInstaller 单文件：前端页面、后端逻辑、两个工具的脚本都会在
+**打包那一刻固化进 exe 内部**（运行时解压到只读临时目录）。此后你修改或拉取的
+任何代码都不会进入已生成的 exe —— 源码运行（`python hub/server.py`）和 Docker
+每次读的都是最新文件，所以**只有 exe 会停留在旧版本**。看到 exe 行为与源码不一致时，
+先对比 exe 的生成时间与代码修改时间，多半是忘了重新打包。
+
+**更新步骤（每次改了代码、想用 exe 体验新版本时）：**
+
+1. **退出正在运行的旧版 Toolbox.exe**（否则 exe 文件被占用、覆盖会失败）：
+   在其控制台窗口按 `Ctrl+C`，或在任务管理器中结束 `Toolbox.exe` 进程；
+2. 拉取最新代码：`git pull`（或直接基于本地已修改的源码打包）；
+3. 重新打包（二选一；需要本机 Python 3.8+，首次运行会自动安装依赖）：
+   ```bat
+   :: 方式一：双击仓库根目录的 build_windows.bat
+   :: 方式二：命令行手动执行
+   python -m pip install pyinstaller "qrcode[pil]" pillow openpyxl
+   pyinstaller --clean --noconfirm toolbox.spec
+   ```
+4. 新产物在 `dist\Toolbox.exe`：用它**覆盖旧的 exe**（建议先把旧 exe 改名留作备份）；
+5. 双击新 exe 验证。**数据不受影响**：二维码输入/输出与美债缓存都存放在 exe 旁的
+   持久目录（`QRcode/input`、`QRcode/output`、`us-treasury-yields/data` 等），
+   覆盖更新 exe 不会清空或丢失任何数据。
+
+**常见问题**
+
+- 改了代码但 exe 没变化 → 忘了重新打包；重新执行第 3 步即可；
+- 覆盖 exe 提示“文件被占用 / 无法写入” → 先结束运行中的旧 Toolbox.exe 再覆盖；
+- 打开页面仍是旧界面 → 页面资源带 `?v=` 版本号且服务端返回 `Cache-Control: no-store`，
+  正常会自动加载新文件；仍异常时按 `Ctrl+F5` 强制刷新一次；
+- 新 exe 被安全软件隔离/删除 → 单文件 exe 由 PyInstaller 打包，部分杀软会误报，
+  参见下方「常见问题」；可在 VirusTotal 核查后添加信任。
+
 ## 🐧 Linux / macOS 运行（原方案，仍可用）
 
 ```bash

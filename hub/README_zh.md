@@ -154,6 +154,8 @@ A：这是刻意设计——两个任务共用一把互斥锁，保证同一时�
 - 后端：Python 标准库 `http.server`（零第三方依赖）；美债模块动态加载原 `server.py`
   （数据目录可用 `TOOLBOX_TREASURY_HOME` 覆盖）；二维码脚本**进程内加载**执行
   （`generate_qrcodes.run(data_root=...)`，Linux 下亦可沿用 `self_ag` conda 环境）；
-- 前端：原生 HTML / CSS / JS + ECharts 5（本地托管，无 CDN 依赖）；
+- 前端：Vue 3（本地离线托管 `static/vendor/vue.global.prod.js`，无 CDN / 无需构建）+
+  ECharts 5 本地托管；组件化单页应用，二维码结果支持**每 3 个一组左右翻页**扫码与
+  任务进度条；
 - 数据：FRED（圣路易斯联储）；二维码：`qrcode[pil]` + openpyxl；
 - Windows exe：PyInstaller 单文件打包（`toolbox.spec`），运行环境与依赖全部内嵌。

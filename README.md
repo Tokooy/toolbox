@@ -156,6 +156,10 @@ an exclusion.
 
 - **One page, many tools**: left sidebar switches features, never reloads;
 - **On-demand & exclusive**: click a button to run that tool; tasks never overlap (global lock);
+- **Vue 3 frontend**: component-based SPA, Vue 3.5 hosted locally (no CDN, no build step),
+  dark glassmorphism theme with restrained transitions;
+- **Grouped QR preview**: results shown **3 per page**, flip with left/right **previous / next
+  group** buttons, plus a live **task progress bar** during generation;
 - **Offline-friendly**: ECharts bundled locally, no CDN; treasury data cached locally with
   incremental updates and automatic proxy detection for mainland-China networks;
 - **Dynamically extensible**: add a tool by dropping a directory + registering it in

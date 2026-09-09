@@ -159,6 +159,8 @@ performance intact.
 - Backend: Python stdlib `http.server` (zero third-party deps); yields module loaded dynamically
   (data dir overridable via `TOOLBOX_TREASURY_HOME`); QR script executed **in-process**
   (`generate_qrcodes.run(data_root=...)`; the `self_ag` conda env remains an option on Linux).
-- Frontend: vanilla HTML/CSS/JS + ECharts 5 (bundled locally, no CDN).
+- Frontend: Vue 3 (hosted locally in `static/vendor/vue.global.prod.js` — no CDN, no build step)
+  + ECharts 5 (local). Component-based SPA; QR results support **3-per-page browsing with
+  left/right paging buttons** and a live task progress bar.
 - Data: FRED (St. Louis Fed); QR: `qrcode[pil]` + openpyxl.
 - Windows exe: PyInstaller single-file packaging (`toolbox.spec`) — runtime and deps embedded.

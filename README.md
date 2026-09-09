@@ -95,6 +95,81 @@ bash 启动.sh
 > Windows and Linux share the same source: on Windows the QR generator runs in-process
 > (no conda env needed); the Linux/macOS `install.sh` + `启动.sh` flow is unchanged.
 
+## 🐳 Docker (recommended for migration / headless deployment)
+
+Containerizing Toolbox lets you run the whole workbench on **any machine with Docker**
+(Linux server, NAS, VPS, cloud host) with one command — no Python install, no desktop
+environment needed. This is the easiest path for future migration.
+
+### 1. Build the image
+
+```bash
+docker build -t toolbox .
+```
+
+> The image bundles the hub server, Vue 3 frontend, QR dependencies
+> (qrcode / pillow / openpyxl) and the **treasury historical seed data**
+> (charts work offline right away). Image size ≈ 240MB.
+
+### 2. Run
+
+```bash
+# Foreground, one-off (Ctrl+C to exit):
+docker run --rm -p 8080:8080 toolbox
+
+# Recommended: detached daemon with two data volumes (data survives container removal):
+docker run -d --name toolbox -p 8080:8080 \
+  -v toolbox_qr:/app/QRcode \
+  -v toolbox_treasury:/app/us-treasury-yields/data \
+  toolbox
+```
+
+Open **http://localhost:8080** (on a remote host: `http://<host-ip>:8080`).
+
+**Data volumes** (key to migration/backup):
+
+| Volume | Container path | Contents |
+| --- | --- | --- |
+| `toolbox_qr` | `/app/QRcode` | QR Excel inputs / HTML·Excel outputs / PNG cache |
+| `toolbox_treasury` | `/app/us-treasury-yields/data` | Treasury cache (updated online once, offline afterwards) |
+
+Volumes are auto-created on first run and seeded from the image; `docker rm` never deletes
+them, so re-running the same `docker run` resumes with your old data.
+
+### 3. Daily management
+
+```bash
+docker logs -f toolbox          # tail service logs
+docker stop toolbox && docker start toolbox   # stop / start
+docker restart toolbox          # restart in place
+docker rm -f toolbox            # remove container (volumes kept)
+docker volume ls                # list volumes (toolbox_qr / toolbox_treasury)
+docker exec -it toolbox sh      # shell into the container
+docker cp 表格.xlsx toolbox:/app/QRcode/input/   # or copy a file into the container
+```
+
+### 4. Migrating to a new machine
+
+1. Install Docker on the new machine;
+2. Move your data (either way):
+   - Back up the volumes on the old host
+     (`docker run --rm -v toolbox_qr:/from -v "$(pwd)":/to alpine cp -a /from/. /to/qr/`), or
+     simply copy the directories you generated yourself;
+   - Simple case: copy/clone the repo to the new machine and run `docker build` again —
+     volumes keep your data regardless of the container;
+3. Run the `docker run` command above on the new machine (same volume names resume data).
+
+### 5. Notes
+
+- The service listens on `0.0.0.0:8080` (`HOST=0.0.0.0` inside the image); on a port conflict
+  use `-p 8081:8080`;
+- To change the port: `docker run -e PORT=8080 -p 8081:8080 …`;
+- There is no browser inside the container; the “auto-open browser” step is safely ignored —
+  just visit the page with your browser;
+- Expose it only to trusted networks (localhost / LAN). For public access, put a reverse
+  proxy in front;
+- Coexists with the exe / source workflows — all three share the same code and features.
+
 ## Layout
 
 ```
@@ -103,11 +178,13 @@ toolbox/
 ├── us-treasury-yields/     # Tool 2: treasury yields dashboard (improved fetching only)
 ├── hub/                    # Integration layer: unified server + frontend
 │   ├── server.py           # Unified web server (pure stdlib, exe-aware)
-│   ├── static/             # Single-page frontend
+│   ├── static/             # Single-page frontend (Vue3 + ECharts, local & offline)
 │   ├── features.json       # Feature registry (add/remove tools dynamically)
 │   ├── install.sh / 启动.sh  # Linux/macOS installer & launcher
 ├── toolbox.spec            # PyInstaller config (Windows single-file exe)
 ├── build_windows.bat       # Windows one-click build script
+├── Dockerfile              # Docker image (migration / headless deployment)
+├── .dockerignore           # Docker build-context excludes
 └── README.md / README_zh.md
 ```
 

@@ -92,6 +92,75 @@ bash 启动.sh
 > Windows 与 Linux 使用同一份源码：Windows 把二维码生成改为进程内调用（不依赖
 > conda 环境），Linux/macOS 的 `install.sh` + `启动.sh` 流程保持不变。
 
+## 🐳 Docker 运行（推荐迁移 / 无桌面部署）
+
+把整个 Toolbox 容器化后，可在**任意装有 Docker 的机器**（Linux 服务器、NAS、VPS、
+云主机）一条命令跑起来，无需安装 Python、无需桌面环境 —— 最适合以后迁移。
+
+### 1. 构建镜像
+
+```bash
+docker build -t toolbox .
+```
+
+> 镜像内已打包：hub 服务、Vue3 前端、二维码依赖（qrcode/pillow/openpyxl）与
+> **美债历史种子数据**（离线打开即有图）。构建产物约 240MB。
+
+### 2. 运行
+
+```bash
+# 一次性前台运行（Ctrl+C 退出）：
+docker run --rm -p 8080:8080 toolbox
+
+# 推荐：后台守护运行，并挂载两个数据卷（数据不随容器销毁丢失）：
+docker run -d --name toolbox -p 8080:8080 \
+  -v toolbox_qr:/app/QRcode \
+  -v toolbox_treasury:/app/us-treasury-yields/data \
+  toolbox
+```
+
+启动后浏览器访问 **http://localhost:8080**（远程部署则访问 `http://<主机IP>:8080`）。
+
+**数据卷说明**（迁移/备份的关键）：
+
+| 数据卷 | 容器路径 | 内容 |
+| --- | --- | --- |
+| `toolbox_qr` | `/app/QRcode` | 二维码 Excel 输入 / HTML·Excel 输出 / PNG 缓存 |
+| `toolbox_treasury` | `/app/us-treasury-yields/data` | 美债数据缓存（首次联网更新后离线可用） |
+
+首次运行自动创建并初始化（会拷贝镜像内种子缓存），`docker rm` 删除容器**不会**删除卷，
+重跑同一条 `docker run` 即可接续旧数据。
+
+### 3. 日常管理
+
+```bash
+docker logs -f toolbox          # 查看服务日志
+docker stop toolbox && docker start toolbox   # 停止 / 重新启动
+docker restart toolbox          # 直接重启
+docker rm -f toolbox            # 删除容器（数据卷仍在）
+docker volume ls                # 查看数据卷（toolbox_qr / toolbox_treasury）
+docker exec -it toolbox sh      # 进入容器（例如手动放 Excel 到 /app/QRcode/input）
+docker cp 表格.xlsx toolbox:/app/QRcode/input/   # 或直接把文件拷进容器
+```
+
+### 4. 迁移到新机器
+
+1. 新机器安装 Docker；
+2. 迁移数据（二选一）：
+   - 旧机器 `docker run --rm -v toolbox_qr:/from -v "$(pwd)":/to alpine cp -a /from/. /to/qr/` 备份卷内容，
+     或直接拷贝你自己生成的目录内容；
+   - 简单场景：把仓库拷到新机器（`git clone`），重新 `docker build` 即可，数据放卷里跟镜像走；
+3. 新机器上执行上面的 `docker run`（卷名一致即自动接续数据）。
+
+### 5. 说明与注意
+
+- 服务监听 `0.0.0.0:8080`（镜像内 `HOST=0.0.0.0`）供端口映射；端口冲突可改
+  `-p 8081:8080`；
+- 想换端口/地址：`docker run -e PORT=8080 -p 8081:8080 …`；
+- 容器内无浏览器，"自动打开浏览器"步骤会被服务安全忽略，直接用网页访问即可；
+- 仅暴露到可信网络（本机/内网）。若需公网访问，建议置于反向代理后；
+- 与 exe / 源码运行互不影响：三种方式共用同一份代码与功能。
+
 ## 目录结构
 
 ```
@@ -100,11 +169,13 @@ toolbox/
 ├── us-treasury-yields/     # 工具二：美债收益率看板（原项目，仅改进数据获取）
 ├── hub/                    # 整合层：统一服务端 + 前端
 │   ├── server.py           # 统一 Web 服务（纯 Python 标准库，兼容 exe 打包）
-│   ├── static/             # 单页前端
+│   ├── static/             # 单页前端（Vue3 + ECharts，本地离线托管）
 │   ├── features.json       # 功能注册表（动态增删工具）
 │   ├── install.sh / 启动.sh  # Linux/macOS 安装与启动脚本
 ├── toolbox.spec            # PyInstaller 打包配置（Windows 单文件 exe）
 ├── build_windows.bat       # Windows 一键构建脚本
+├── Dockerfile              # Docker 运行镜像（迁移 / 无桌面部署）
+├── .dockerignore           # 构建上下文排除规则
 └── README.md / README_zh.md
 ```
 

@@ -258,10 +258,18 @@ def get_qrcode_result():
                 'url': f'/api/qrcode/download?file={p.name}',
             })
 
+    # 结构化条目：供前端按「每 3 个一组」分页扫码（从预览 HTML 中提取 img/alt）
+    items = []
+    if html:
+        for m in re.finditer(r'src="(/api/qrcode/image/[^"]+)"[^>]*alt="([^"]*)"', html):
+            items.append({'image': m.group(1), 'code': m.group(2)})
+
     return {
         'has_result': bool(html_path),
         'html': html,
         'outputs': outputs,
+        'items': items,
+        'count': len(items),
         'html_name': html_path.name if html_path else None,
         'xlsx_name': xlsx_path.name if xlsx_path else None,
     }

@@ -8,9 +8,7 @@
 每次运行前自动清理上次生成的旧文件（html / xlsx / 二维码缓存）。
 """
 
-import os
 import sys
-import glob
 from datetime import datetime
 from pathlib import Path
 
@@ -21,6 +19,8 @@ from openpyxl.drawing.image import Image as XlImage
 from openpyxl.utils import get_column_letter
 
 # ── 路径 ──────────────────────────────────────────────
+# BASE_DIR 为 CLI 默认数据根；被 Toolbox hub 内嵌调用时由 run(data_root=...) 覆盖
+# INPUT_DIR / OUTPUT_DIR / QR_DIR（见 run()）。
 BASE_DIR = Path(__file__).parent.resolve()
 INPUT_DIR = BASE_DIR / "input"
 OUTPUT_DIR = BASE_DIR / "output"
@@ -171,10 +171,10 @@ def generate_html(codes: list[str], qr_map: dict[str, Path], output_path: Path):
         cells = []
         for code in chunk:
             img_path = qr_map[code]
-            # HTML 中使用相对路径或 base64 嵌入？用 data URI 更好——自包含
+            # 用标准 file URI（file:///…，正斜杠跨平台）引用图片，浏览器可直接打开
             cells.append(f"""\
         <td style="width:{HTML_CELL_W}px; height:{HTML_CELL_H}px; text-align:center; vertical-align:bottom; border:1px solid #ddd; padding:10px;">
-          <img src="file:///{img_path}" width="{QR_SIZE}" height="{QR_SIZE}" alt="{code}" style="display:block; margin:0 auto;">
+          <img src="{img_path.as_uri()}" width="{QR_SIZE}" height="{QR_SIZE}" alt="{code}" style="display:block; margin:0 auto;">
           <div style="margin-top:6px; font-size:13px; font-family:monospace; word-break:break-all;">{code}</div>
         </td>""")
         rows_html.append("      <tr>\n" + "\n".join(cells) + "\n      </tr>")
@@ -291,5 +291,22 @@ def main():
     print("=" * 50)
 
 
-if __name__ == "__main__":
+def run(data_root: Path | str | None = None):
+    """按指定数据根目录执行一次完整生成流程（供外部内嵌调用，如 Toolbox hub）。
+
+    data_root 决定 input / output / qrcodes 三个目录的位置：
+      * 传入时 —— 数据全部写入 data_root 之下（跨平台/打包场景）；
+      * 不传时 —— 与命令行运行一致，使用本脚本所在目录（BASE_DIR）。
+    """
+    global INPUT_DIR, OUTPUT_DIR, QR_DIR
+    root = Path(data_root).resolve() if data_root is not None else BASE_DIR
+    INPUT_DIR, OUTPUT_DIR, QR_DIR = (
+        root / "input",
+        root / "output",
+        root / "qrcodes",
+    )
     main()
+
+
+if __name__ == "__main__":
+    run()

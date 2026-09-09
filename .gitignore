@@ -9,3 +9,16 @@ QRcode/qrcodes/
 
 # 旧文件备份目录
 *_旧文件备份_*/
+
+# Windows 打包产物（PyInstaller）
+build/
+dist/
+*.log
+
+# 本地虚拟环境
+.venv*/
+venv/
+
+# Windows 资源管理器系统文件
+desktop.ini
+Thumbs.db

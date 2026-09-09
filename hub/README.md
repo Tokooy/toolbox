@@ -18,22 +18,38 @@ Unifies the two standalone tools under `toolbox/` into **a single web page**:
 
 ```
 toolbox/
-├── QRcode/                 # Original QR project (untouched)
-├── us-treasury-yields/     # Original yields project (untouched)
+├── QRcode/                 # Original QR project (configurable data root, embeddable)
+├── us-treasury-yields/     # Original yields project (data dir overridable via env)
 └── hub/                    # Integration layer (this app)
     ├── server.py           # Unified web server (pure Python stdlib)
     ├── static/             # Frontend (index.html / style.css / app.js)
     ├── features.json       # Feature-button config (add/remove features)
-    ├── environment.yml     # conda environment definition
-    ├── install.sh          # One-shot installer (env + desktop icon)
-    ├── 启动.sh             # One-shot launcher
+    ├── environment.yml     # conda environment definition (Linux/macOS)
+    ├── install.sh          # Linux/macOS one-shot installer (env + desktop icon)
+    ├── 启动.sh             # Linux/macOS one-shot launcher
     └── Toolbox工具台.desktop
 ```
 
-> The two original projects stay as-is. `hub` reuses them by dynamically loading the
-> yields module and invoking the QR script as a subprocess — **no core feature changed**.
+> The two original projects only received **minimal adaptation** (configurable data root /
+> env override). `hub` reuses them by dynamically loading the yields module and **invoking the
+> QR script in-process** (`run(data_root=...)`) — no core feature changed. On Windows the whole
+> `hub` can be packaged into a single-file `Toolbox.exe` via PyInstaller (see repo-root README).
 
-## 1. Install (once)
+## 🪟 Windows Quick Start
+
+On Windows no conda / bash is needed — use the packaged single-file **`Toolbox.exe`**:
+
+1. Double-click `Toolbox.exe` (or run from source: `python hub/server.py`, after
+   `pip install "qrcode[pil]" pillow openpyxl`);
+2. The browser opens http://127.0.0.1:8080 automatically;
+3. The exe creates `QRcode/{input,output,qrcodes}` and `us-treasury-yields/data` next to itself
+   (if placed next to the repo root, it reuses the repo's existing data folders);
+4. To stop: press Ctrl+C in the console window.
+
+Build it yourself: run `build_windows.bat` at the repo root (equivalent to
+`pyinstaller --clean --noconfirm toolbox.spec`); output is `dist\Toolbox.exe`.
+
+## 1. Install (once, Linux/macOS)
 
 ```bash
 cd ~/Desktop/toolbox/hub
@@ -140,7 +156,9 @@ performance intact.
 
 ## Tech Stack
 
-- Backend: Python 3.11 stdlib `http.server` (zero third-party deps); yields module loaded dynamically;
-  QR script run as a subprocess in the `self_ag` env.
+- Backend: Python stdlib `http.server` (zero third-party deps); yields module loaded dynamically
+  (data dir overridable via `TOOLBOX_TREASURY_HOME`); QR script executed **in-process**
+  (`generate_qrcodes.run(data_root=...)`; the `self_ag` conda env remains an option on Linux).
 - Frontend: vanilla HTML/CSS/JS + ECharts 5 (bundled locally, no CDN).
 - Data: FRED (St. Louis Fed); QR: `qrcode[pil]` + openpyxl.
+- Windows exe: PyInstaller single-file packaging (`toolbox.spec`) — runtime and deps embedded.

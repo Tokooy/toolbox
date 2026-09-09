@@ -16,22 +16,37 @@
 
 ```
 toolbox/
-├── QRcode/                 # 原二维码项目（零改动）
-├── us-treasury-yields/     # 原美债项目（零改动）
+├── QRcode/                 # 原二维码项目（数据根可配置，支持被 hub 内嵌调用）
+├── us-treasury-yields/     # 原美债项目（数据目录支持环境变量覆盖）
 └── hub/                    # 整合层（本应用）
     ├── server.py           # 统一 Web 服务（纯 Python 标准库）
     ├── static/             # 前端（index.html / style.css / app.js）
     ├── features.json       # 功能按钮配置（动态增删功能）
-    ├── environment.yml     # conda 环境定义
-    ├── install.sh          # 一键安装（建环境 + 装桌面图标）
-    ├── 启动.sh             # 一键启动
+    ├── environment.yml     # conda 环境定义（Linux/macOS）
+    ├── install.sh          # Linux/macOS 一键安装（建环境 + 装桌面图标）
+    ├── 启动.sh             # Linux/macOS 一键启动
     └── Toolbox工具台.desktop
 ```
 
-> 两个原始项目目录保持原样。`hub` 通过动态加载美债模块、子进程调用二维码脚本实现复用，
-> **核心功能一个都没改**。
+> 两个原始项目只做了**最小适配**（数据目录可配置）。`hub` 通过动态加载美债模块、
+> **进程内调用**二维码脚本（`run(data_root=...)`）实现复用，核心逻辑未改动。
+> Windows 可用 PyInstaller 把整个 `hub` 打包成单文件 `Toolbox.exe`（见仓库根 README）。
 
-## 一、安装（只需一次）
+## 🪟 Windows 快速开始
+
+Windows 无需 conda / bash，推荐直接使用打包好的单文件 **`Toolbox.exe`**：
+
+1. 双击 `Toolbox.exe` 启动（或源码运行 `python hub/server.py`，需先
+   `pip install "qrcode[pil]" pillow openpyxl`）；
+2. 浏览器自动打开 http://127.0.0.1:8080；
+3. exe 会自动在自身同目录建立 `QRcode/{input,output,qrcodes}` 与
+   `us-treasury-yields/data` 数据目录（放在仓库根旁则直接复用仓库内数据）；
+4. 停止：控制台窗口按 Ctrl+C。
+
+自行打包：在仓库根执行 `build_windows.bat`（等价 `pyinstaller --clean --noconfirm toolbox.spec`），
+产物为 `dist\Toolbox.exe`。
+
+## 一、安装（只需一次，Linux/macOS）
 
 ```bash
 cd ~/Desktop/toolbox/hub
@@ -136,7 +151,9 @@ A：这是刻意设计——两个任务共用一把互斥锁，保证同一时�
 
 ## 技术栈
 
-- 后端：Python 3.11 标准库 `http.server`（零第三方依赖）；美债模块动态加载原 `server.py`；
-  二维码脚本以子进程运行于 `self_ag` 环境；
+- 后端：Python 标准库 `http.server`（零第三方依赖）；美债模块动态加载原 `server.py`
+  （数据目录可用 `TOOLBOX_TREASURY_HOME` 覆盖）；二维码脚本**进程内加载**执行
+  （`generate_qrcodes.run(data_root=...)`，Linux 下亦可沿用 `self_ag` conda 环境）；
 - 前端：原生 HTML / CSS / JS + ECharts 5（本地托管，无 CDN 依赖）；
-- 数据：FRED（圣路易斯联储）；二维码：`qrcode[pil]` + openpyxl。
+- 数据：FRED（圣路易斯联储）；二维码：`qrcode[pil]` + openpyxl；
+- Windows exe：PyInstaller 单文件打包（`toolbox.spec`），运行环境与依赖全部内嵌。

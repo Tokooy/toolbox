@@ -30,7 +30,10 @@ from urllib.request import ProxyHandler, Request, build_opener, urlopen
 # --------------------------------------------------------------------------
 # 路径与常量
 # --------------------------------------------------------------------------
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# 数据/缓存根目录：默认与脚本同目录（standalone 运行不受影响）；
+# 被 Toolbox 单文件 exe 内嵌加载时，由 hub 通过环境变量指向 exe 旁的持久目录
+# （exe 解包出的 _MEIPASS 是只读临时目录，缓存写进去会在退出后丢失）。
+BASE_DIR = os.environ.get('TOOLBOX_TREASURY_HOME') or os.path.dirname(os.path.abspath(__file__))
 STATIC_DIR = os.path.join(BASE_DIR, 'static')
 DATA_DIR = os.path.join(BASE_DIR, 'data')
 CSV_PATH = os.path.join(DATA_DIR, 'treasury_yields.csv')

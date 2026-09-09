@@ -6,7 +6,7 @@ Toolbox 工具台 · 统一 Web 服务
 把两个独立功能整合进同一个网页（单页应用，点按钮切换，不跳转页面）：
 
   1. 美债收益率看板（us-treasury-yields）—— 纯标准库，动态加载原模块复用全部核心逻辑
-  2. 二维码批量生成（QRcode）—— 用系统当前 Python（conda 环境 self_ag）运行原脚本，
+  2. 二维码批量生成（QRcode）—— 在进程内加载原脚本执行（Windows 单文件 exe 同样适用），
      网页内实时显示运行日志并预览生成的二维码
 
 设计要点：
@@ -14,16 +14,17 @@ Toolbox 工具台 · 统一 Web 服务
   * 按需运行：平时服务零开销，点哪个按钮才触发哪个功能；
   * 核心功能零改动：两个原始项目目录保持原样，这里只是调用与展示。
 
-运行：python server.py  →  http://127.0.0.1:8080
+运行（源码）  ：python server.py  →  http://127.0.0.1:8080
+运行（Windows）：双击打包好的 Toolbox.exe（PyInstaller 单文件，自带运行环境）
 """
 
+import contextlib
 import importlib.util
 import json
 import mimetypes
 import os
 import re
 import shutil
-import subprocess
 import sys
 import threading
 import webbrowser
@@ -35,19 +36,38 @@ from urllib.parse import parse_qs, quote, urlparse
 # --------------------------------------------------------------------------
 # 路径与常量
 # --------------------------------------------------------------------------
-HUB_DIR = Path(__file__).parent.resolve()
-SELF_AG_DIR = HUB_DIR.parent
+# 打包为 Windows exe（PyInstaller）后：
+#   * 程序本体被解压到临时目录 _MEIPASS（只读、进程退出即清空），__file__ 不可靠；
+#   * 因此「代码资源」（hub 静态文件、treasury / QR 生成脚本副本）从 _MEIPASS 读取，
+#     而会增长/变化的「数据」（二维码 input/output/qrcodes、美债数据缓存）
+#     一律放到可执行文件旁的持久目录（可用 TOOLBOX_ROOT 环境变量覆盖）。
+FROZEN = bool(getattr(sys, 'frozen', False))
+
+if FROZEN:
+    _MEIPASS_DIR = Path(getattr(sys, '_MEIPASS', Path(sys.executable).parent))
+    HUB_DIR = _MEIPASS_DIR / 'hub'
+    APP_ROOT = Path(os.environ.get('TOOLBOX_ROOT') or Path(sys.executable).parent).resolve()
+else:
+    HUB_DIR = Path(__file__).parent.resolve()
+    APP_ROOT = HUB_DIR.parent
+
+SELF_AG_DIR = APP_ROOT
 STATIC_DIR = HUB_DIR / 'static'
 FEATURES_PATH = HUB_DIR / 'features.json'
 
-QRCODE_DIR = SELF_AG_DIR / 'QRcode'
-QR_SCRIPT = QRCODE_DIR / 'generate_qrcodes.py'
+# 二维码数据目录：若 exe 放在仓库根目录旁（旁边已有 QRcode/ 目录）则直接复用其中
+# 的 input/output/qrcodes；否则首次使用时在 exe 旁自动创建这些目录。
+QRCODE_DIR = APP_ROOT / 'QRcode'
 QR_INPUT_DIR = QRCODE_DIR / 'input'
 QR_OUTPUT_DIR = QRCODE_DIR / 'output'
 QR_IMG_DIR = QRCODE_DIR / 'qrcodes'
+# 生成脚本本体：打包时作为资源打进 exe，运行期从 _MEIPASS 加载；源码模式直接指向原文件。
+QR_SCRIPT = ((_MEIPASS_DIR / 'QRcode' / 'generate_qrcodes.py')
+             if FROZEN else (QRCODE_DIR / 'generate_qrcodes.py'))
 
-TREASURY_DIR = SELF_AG_DIR / 'us-treasury-yields'
-TREASURY_SERVER = TREASURY_DIR / 'server.py'
+TREASURY_DIR = APP_ROOT / 'us-treasury-yields'
+TREASURY_SERVER = ((_MEIPASS_DIR / 'us-treasury-yields' / 'server.py')
+                   if FROZEN else (TREASURY_DIR / 'server.py'))
 
 PORT = int(os.environ.get('PORT', '8080'))
 
@@ -55,6 +75,10 @@ PORT = int(os.environ.get('PORT', '8080'))
 # 加载美债模块（原 server.py 只定义数据逻辑与 HTTP Handler，main 不会执行）
 # --------------------------------------------------------------------------
 def _load_treasury():
+    # 打包模式：美债模块内部按 __file__ 推导数据目录（BASE_DIR/data），
+    # 需让它把缓存写到 exe 旁的持久目录而非只读的 _MEIPASS
+    # （us-treasury-yields/server.py 已支持 TOOLBOX_TREASURY_HOME 覆盖）。
+    os.environ['TOOLBOX_TREASURY_HOME'] = str(TREASURY_DIR)
     spec = importlib.util.spec_from_file_location('treasury_app', str(TREASURY_SERVER))
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
@@ -108,39 +132,51 @@ def create_qrcode_task():
     return task_id
 
 
+def _load_qr_generator():
+    """动态加载二维码生成脚本（打包后从 exe 内部资源加载，源码模式直接加载原文件）"""
+    spec = importlib.util.spec_from_file_location('qrcode_generator', str(QR_SCRIPT))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+class _TaskLogWriter:
+    """把被调用脚本的 print 输出按行实时写入任务日志（供前端轮询展示）"""
+
+    def __init__(self, sink: list):
+        self._sink = sink
+        self._buf = ''
+
+    def write(self, s: str):
+        self._buf += s
+        while '\n' in self._buf:
+            line, self._buf = self._buf.split('\n', 1)
+            line = line.rstrip('\r')
+            if line:
+                self._sink.append(line)
+
+    def flush(self):
+        pass
+
+
 def _qrcode_worker(task_id: str):
     task = _tasks[task_id]
-    proc = None
     try:
         # 加全局锁运行，保证不与美债刷新并发
         with _global_task_lock:
-            proc = subprocess.Popen(
-                [sys.executable, str(QR_SCRIPT)],
-                cwd=str(QRCODE_DIR),
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True, encoding='utf-8', errors='replace', bufsize=1,
-            )
-            assert proc.stdout is not None
-            for line in proc.stdout:
-                line = line.rstrip('\n')
-                task['log'].append(line)
-            proc.wait()
-        if proc.returncode == 0:
-            task['result'] = get_qrcode_result()
-            task['status'] = 'done'
-        else:
-            task['status'] = 'error'
-            task['error'] = f'脚本退出码 {proc.returncode}'
+            mod = _load_qr_generator()
+            with contextlib.redirect_stdout(_TaskLogWriter(task['log'])):
+                # 脚本在本进程内执行（不再依赖外部 Python / conda 环境），
+                # 数据统一写入 QRCODE_DIR —— Windows 单文件 exe 的关键。
+                mod.run(data_root=str(QRCODE_DIR))
+        task['result'] = get_qrcode_result()
+        task['status'] = 'done'
+    except SystemExit as exc:  # 脚本内部业务错误会 sys.exit(1)
+        task['status'] = 'error'
+        task['error'] = f'脚本退出码 {exc.code if exc.code is not None else 1}'
     except Exception as exc:  # noqa: BLE001
         task['status'] = 'error'
         task['error'] = str(exc)
-    finally:
-        if proc is not None and proc.poll() is None:
-            try:
-                proc.kill()
-            except OSError:
-                pass
 
 
 def _latest_output(pattern: str):
@@ -458,6 +494,11 @@ class Handler(BaseHTTPRequestHandler):
 # 入口
 # --------------------------------------------------------------------------
 def main():
+    # Windows 控制台默认 GBK：统一改用 UTF-8 输出（errors=replace 兜底），
+    # 避免打印 ═ / ➜ / ⚡ 等装饰字符时抛 UnicodeEncodeError 导致启动崩溃。
+    for stream in (sys.stdout, sys.stderr):
+        if stream is not None and hasattr(stream, 'reconfigure'):
+            stream.reconfigure(encoding='utf-8', errors='replace')
     for d in (QR_INPUT_DIR, QR_OUTPUT_DIR, QR_IMG_DIR):
         d.mkdir(parents=True, exist_ok=True)
 
@@ -465,8 +506,9 @@ def main():
         server = ThreadingHTTPServer(('127.0.0.1', PORT), Handler)
     except OSError as exc:
         print(f'\n✗ 启动失败：端口 {PORT} 已被占用（{exc}）')
-        print('  可能已有实例在运行。请先关闭旧实例，或换端口启动：')
-        print(f'    PORT={PORT + 100} python server.py')
+        print('  可能已有实例在运行。请先关闭旧实例，或设置环境变量 PORT 后重启：')
+        print('    PowerShell : $env:PORT=8088; python server.py')
+        print('    CMD        : set PORT=8088 && python server.py')
         sys.exit(1)
 
     url = f'http://127.0.0.1:{PORT}'

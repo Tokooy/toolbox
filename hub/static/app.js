@@ -741,6 +741,15 @@ const QrcodePanel = {
     return {
       isActive, state, ICONS, fileInput, hasResult, showMeta, showEmpty, totalPages, currentChunk,
       canRun, runHintHtml, runHintCls, fileMeta, progressText,
+      // 模板中直接裸用这些状态名，必须在此暴露（toRef 保持响应式读写）：
+      // 否则上传后 file 不显示、running 恒为假 → 进度条与结果区永不出现、
+      // result 为 undefined → 下载按钮 / 每 3 个一组扫码全部失效。
+      file: Vue.toRef(state, 'file'),
+      dragOver: Vue.toRef(state, 'dragOver'),
+      running: Vue.toRef(state, 'running'),
+      result: Vue.toRef(state, 'result'),
+      progress: Vue.toRef(state, 'progress'),
+      page: Vue.toRef(state, 'page'),
       pickFile, onFileChange, onDrop, clearFile, start, pagePrev, pageNext,
     };
   },

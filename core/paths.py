@@ -28,8 +28,8 @@ from pathlib import Path
 
 __all__ = [
     'FROZEN', 'CODE_ROOT', 'APP_ROOT', 'DATA_ROOT',
-    'HUB_DIR', 'STATIC_DIR', 'APPS_DIR',
-    'bootstrap', 'app_dir', 'app_data_dir',
+    'HUB_DIR', 'STATIC_DIR', 'APPS_DIR', 'SEED_DIR',
+    'bootstrap', 'app_dir', 'app_data_dir', 'app_seed_dir',
 ]
 
 # 打包为单文件 exe 后：程序本体解包到只读临时目录 _MEIPASS，__file__ 不再可靠
@@ -50,6 +50,9 @@ DATA_ROOT_EXPLICIT = bool(os.environ.get('TOOLBOX_DATA_ROOT'))
 HUB_DIR = CODE_ROOT / 'hub'
 STATIC_DIR = HUB_DIR / 'static'
 APPS_DIR = CODE_ROOT / 'apps'
+# 随包发布的「种子数据」（只读）：打包 exe / Docker 镜像里带一份，首启动时复制到数据目录，
+# 这样离线环境也能立刻看到美债历史曲线。源码运行时该目录不存在，用的是仓库里的 data/。
+SEED_DIR = CODE_ROOT / 'seed'
 
 
 def bootstrap() -> None:
@@ -82,3 +85,8 @@ def app_data_dir(app_id: str, legacy: str | None = None) -> Path:
         if old.is_dir() and not new.exists():
             return old
     return new
+
+
+def app_seed_dir(app_id: str) -> Path:
+    """应用随包发布的种子数据目录：``<代码根>/seed/<app_id>/``（只读；源码树里通常不存在）。"""
+    return SEED_DIR / app_id

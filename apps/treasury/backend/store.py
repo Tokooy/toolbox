@@ -21,12 +21,13 @@
 import csv
 import json
 import os
+import shutil
 from pathlib import Path
 
 from core import paths
 
 __all__ = ['LEGACY_DIR', 'data_dir', 'raw_dir', 'csv_path', 'meta_path',
-           'ensure_dir', 'has_cache', 'read_rows', 'read_meta', 'write_cache']
+           'ensure_dir', 'ensure_seed', 'has_cache', 'read_rows', 'read_meta', 'write_cache']
 
 # 旧版（重构前）本应用的缓存目录，用于升级后自动沿用用户已有数据
 LEGACY_DIR = 'us-treasury-yields/data'
@@ -58,6 +59,23 @@ def ensure_dir() -> Path:
 
 def has_cache() -> bool:
     return csv_path().is_file()
+
+
+def ensure_seed() -> bool:
+    """首次运行时把随包发布的种子数据复制到数据目录（离线也能立刻看到历史曲线）。
+
+    * 打包 exe / Docker 镜像里带了一份 ``seed/treasury/``（只读），而数据目录是可写的
+      —— 首次启动把它复制过去，之后照常增量更新；
+    * 源码运行时 ``seed/`` 不存在（仓库里的 ``data/treasury/`` 本身就是缓存），直接返回 False；
+    * 已有缓存时什么都不做，绝不覆盖用户数据。
+    """
+    if has_cache():
+        return False
+    seed = paths.app_seed_dir('treasury')
+    if not (seed / 'treasury_yields.csv').is_file():
+        return False
+    shutil.copytree(seed, ensure_dir(), dirs_exist_ok=True)
+    return has_cache()
 
 
 def read_rows() -> dict[str, dict[str, float | None]]:

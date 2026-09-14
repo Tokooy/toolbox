@@ -15,7 +15,16 @@ Thumbs.db
 **/__pycache__/
 **/*.pyc
 
-# 用户数据（二维码输入/输出/缓存）不入镜像 —— 运行时用数据卷挂载
-QRcode/input/
-QRcode/output/
-QRcode/qrcodes/
+# 冒烟测试的临时数据目录
+.smoke-*/
+
+# 用户数据不入镜像 —— 运行时用数据卷挂载到 /app/data
+# 注意：data/treasury/ 是内置的离线种子数据，必须保留，因此这里只排除 data/qrcode
+data/qrcode/
+
+# 打包脚本本身不需要进运行镜像
+packaging/
+
+# 旧版目录（若本地仍存在，避免被送进构建上下文）
+QRcode/
+us-treasury-yields/

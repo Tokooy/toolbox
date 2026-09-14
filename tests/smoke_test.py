@@ -39,6 +39,7 @@ os.environ['TOOLBOX_DATA_ROOT'] = str(_TMP_DATA)
 
 from core import http, paths, registry, standalone   # noqa: E402
 from hub import server as hub                        # noqa: E402
+from apps.treasury.backend import store              # noqa: E402
 
 PASSED, FAILED = [], []
 PORT = 0
@@ -191,6 +192,19 @@ def main() -> int:
               len(payload.get('dates', [])) == len(payload['series']['DGS2']['values']))
     else:
         print('  - 跳过美债缓存断言（仓库内没有种子数据）')
+
+    # 种子数据复制（打包 exe / Docker 首次启动靠它离线开箱即用）
+    if (ROOT / 'data' / 'treasury' / 'treasury_yields.csv').is_file():
+        keep_data_root, keep_seed_dir = paths.DATA_ROOT, paths.SEED_DIR
+        try:
+            paths.DATA_ROOT = _TMP_DATA / 'seed-probe'
+            paths.SEED_DIR = ROOT / 'data'
+            copied = store.ensure_seed()
+            check('空数据目录可用种子数据初始化',
+                  copied and store.has_cache() and not store.ensure_seed(),
+                  'copied=%s' % copied)
+        finally:
+            paths.DATA_ROOT, paths.SEED_DIR = keep_data_root, keep_seed_dir
 
     # ---------------- 二维码 ----------------
     excel = _TMP_DATA / 'smoke_input.xlsx'

@@ -5,11 +5,12 @@ rem  Toolbox 工具台 · Windows 一键构建脚本
 rem  生成单文件 Toolbox.exe（PyInstaller onefile，自带运行环境）
 rem
 rem  前提：本机已安装 Python 3.8+（推荐 conda/miniconda 环境）
-rem  用法：双击本脚本，或在命令行执行  build_windows.bat
+rem  用法：双击本脚本，或在仓库根目录执行  packaging\windows\build_windows.bat
 rem  产物：dist\Toolbox.exe
 rem ============================================================
 setlocal
-cd /d "%~dp0"
+rem 切到仓库根目录（本脚本位于 packaging\windows\）
+cd /d "%~dp0..\.."
 
 echo.
 echo  ════════════════════════════════════════════════════════
@@ -22,8 +23,8 @@ python -m pip install --upgrade pyinstaller "qrcode[pil]" pillow openpyxl
 if errorlevel 1 goto :err
 
 echo.
-echo  [2/3] 使用 toolbox.spec 打包单文件 exe（onefile）...
-pyinstaller --clean --noconfirm toolbox.spec
+echo  [2/3] 使用 packaging\windows\toolbox.spec 打包单文件 exe（onefile）...
+pyinstaller --clean --noconfirm packaging\windows\toolbox.spec
 if errorlevel 1 goto :err
 
 echo.
@@ -35,9 +36,9 @@ echo.
 echo   使用方式：
 echo     · 双击 Toolbox.exe 即启动，浏览器自动打开 http://127.0.0.1:8080
 echo     · 数据目录会自动建立在 exe 同目录：
-echo         - QRcode\input      放待处理的 Excel
-echo         - QRcode\output     生成的 HTML / Excel
-echo         - us-treasury-yields\data   美债数据缓存
+echo         - data\qrcode\input     放待处理的 Excel
+echo         - data\qrcode\output    生成的 HTML / Excel
+echo         - data\treasury         美债数据缓存
 echo     · 若把 exe 放在本仓库根目录旁，将直接复用仓库内现有数据目录
 echo     · 停止服务：在 exe 控制台窗口按 Ctrl+C
 echo  ════════════════════════════════════════════════════════

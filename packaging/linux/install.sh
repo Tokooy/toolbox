@@ -1,17 +1,22 @@
 #!/usr/bin/env bash
 # ============================================================
-#  Toolbox 工具台 · 一键安装
-#   ① 创建 conda 环境 self_ag 并安装依赖（QRcode 所需）
-#   ② 安装桌面快捷方式（可双击启动）
+#  Toolbox 工具台 · 一键安装（Linux / macOS）
+#   ① 创建 conda 环境 self_ag 并安装依赖（二维码生成所需）
+#   ② 安装桌面快捷方式与应用菜单项（双击即可启动）
+#
+#  用法：bash packaging/linux/install.sh
 # ============================================================
 set -e
 
-HUB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$HERE/../.." && pwd)"
 ENV_NAME="self_ag"
+LAUNCHER="$HERE/启动.sh"
 
 echo ""
 echo "  ═══════════════════════════════════════════════"
 echo "   Toolbox 工具台 · 安装向导"
+echo "   仓库目录：$REPO_ROOT"
 echo "  ═══════════════════════════════════════════════"
 echo ""
 
@@ -19,6 +24,7 @@ echo ""
 if ! command -v conda >/dev/null 2>&1; then
   echo "  ✗ 未找到 conda，请先安装 Miniconda/Anaconda："
   echo "    https://docs.conda.io/en/latest/miniconda.html"
+  echo "  （若只想跑美债看板 / 工具台本体，直接用系统 python 运行也可以——它们零第三方依赖）"
   exit 1
 fi
 
@@ -39,35 +45,36 @@ fi
   || { echo "  ✗ 依赖检查失败，请重新运行 install.sh"; exit 1; }
 
 # ---------- ② 桌面快捷方式 ----------
-DESKTOP_SRC="$HUB_DIR/Toolbox工具台.desktop"
-DESKTOP_APP="$HOME/.local/share/applications/toolbox.desktop"
-mkdir -p "$HOME/.local/share/applications"
+chmod +x "$LAUNCHER"
 
-cat > "$DESKTOP_SRC" <<EOF
+make_desktop_file() {
+  cat > "$1" <<EOF
 [Desktop Entry]
 Type=Application
 Version=1.0
 Name=Toolbox 工具台
 Name[zh_CN]=Toolbox 工具台
 Comment=多功能本地工具集 · 美债收益率 / 二维码生成
-Exec=$HUB_DIR/启动.sh
-Icon=$HUB_DIR/icon.svg
+Exec=$LAUNCHER
+Icon=$HERE/icon.svg
 Terminal=true
 Categories=Utility;Office;
 EOF
-chmod +x "$DESKTOP_SRC" "$HUB_DIR/启动.sh"
+  chmod +x "$1"
+}
 
-cp "$DESKTOP_SRC" "$DESKTOP_APP"
+APPS_DIR="$HOME/.local/share/applications"
+mkdir -p "$APPS_DIR"
+make_desktop_file "$APPS_DIR/toolbox.desktop"
 
 # 桌面副本（GNOME 需要标记为可信才能双击运行）
 if [ -d "$HOME/Desktop" ]; then
-  cp "$DESKTOP_SRC" "$HOME/Desktop/Toolbox工具台.desktop"
-  chmod +x "$HOME/Desktop/Toolbox工具台.desktop"
+  make_desktop_file "$HOME/Desktop/Toolbox工具台.desktop"
   if command -v gio >/dev/null 2>&1; then
     gio set "$HOME/Desktop/Toolbox工具台.desktop" metadata::trusted true 2>/dev/null || true
   fi
 fi
-update-desktop-database "$HOME/.local/share/applications" 2>/dev/null || true
+update-desktop-database "$APPS_DIR" 2>/dev/null || true
 
 echo ""
 echo "  ✓ 桌面快捷方式已安装："
@@ -75,7 +82,7 @@ echo "    · 桌面图标  「Toolbox 工具台」"
 echo "    · 应用菜单  （GNOME 搜索「Toolbox」）"
 echo ""
 echo "  ▶ 现在可以双击桌面图标启动；或命令行运行："
-echo "      bash \"$HUB_DIR/启动.sh\""
+echo "      bash \"$LAUNCHER\""
 echo ""
 echo "  安装完成！"
 echo "  ═══════════════════════════════════════════════"

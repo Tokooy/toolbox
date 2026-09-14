@@ -146,6 +146,10 @@ export default {
 | `data/treasury/` | 美债缓存 `treasury_yields.csv` / `meta.json` + `raw/` 原始 CSV 存档 | ✅ 入库（离线开箱即用，raw 可溯源） |
 | `data/qrcode/` | `input/`（上传的 Excel）、`output/`（生成的 HTML / Excel）、`qrcodes/`（PNG 缓存） | ❌ 用户数据，`.gitignore` 排除 |
 
+**种子数据**：打包 exe 与 Docker 镜像会把 `data/treasury/` 作为只读资源放在 `seed/treasury/`，
+首次启动由 `apps/treasury/backend/store.py:ensure_seed()` 复制进可写的数据目录
+（已有缓存时绝不覆盖），因此离线环境打开即见历史曲线。
+
 > 升级过渡：`core.paths.app_data_dir()` 带旧目录回退 —— 若新版目录尚不存在而旧版
 > （`QRcode/`、`us-treasury-yields/data/`）存在，则继续沿用旧目录，避免升级后数据“消失”。
 > 把数据搬到 `data/` 后自动切换；显式设置了 `TOOLBOX_DATA_ROOT` 时不回退。
@@ -185,7 +189,8 @@ export default {
 | `hub/static` | 外壳 + 宿主 SDK（替换单体 app.js） | ✅ 完成 |
 | `data/` | 数据目录与应用代码分离（旧目录已清理） | ✅ 完成 |
 | `apps/*/standalone.py`、`cli.py` | 各工具独立运行入口 | ✅ 完成 |
-| `packaging/` | exe / Docker / Linux 安装脚本归位 | ⏳ 进行中 |
+| `packaging/` | exe / Docker / Linux 安装脚本归位 | ✅ 完成 |
+| 文档 | 根 README、ARCHITECTURE、各应用与 hub 的 README | ✅ 完成 |
 
 > 重构期内的每一笔提交都保证「工具台可用」：先落后端分层，再落前端分层，
 > 最后搬迁数据目录与交付脚本，任何一步都不会让两个功能失效。

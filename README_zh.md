@@ -1,267 +1,130 @@
 # Toolbox — 多功能工具台
 
-> English version: [README.md](README.md)
+> English version: [README.md](README.md) · 架构详解：[ARCHITECTURE.md](ARCHITECTURE.md)
 
-**Toolbox** 是一个**多功能工具集合**：把多个独立的小工具整合进**一个本地网页应用**。
-每个工具保持原始代码不动，由统一的 `hub` 整合层把它们汇入同一个单页面板——
-点哪个功能按钮就运行哪个功能，不跳转页面，任务互斥（同一时刻只运行一个）。
+**Toolbox** 把若干个小工具装进**同一个本地网页**：左侧点按钮切换功能，不跳转页面、不用记命令行。
+所有工具共用一套外壳与后端内核，每个工具也可以**脱离工具台单独运行**。
 
-本项目**跨平台**：Linux / macOS 可直接用 Python 运行；**Windows 支持一键打包成单文件
-`Toolbox.exe`**，双击即用、无需安装 Python（自带运行环境）。
-
-## 已包含的工具
-
-| 工具 | 说明 | 独立仓库 |
+| 工具 | 说明 | 代码位置 |
 | --- | --- | --- |
-| 📈 美债收益率 | 美国 2 / 10 / 30 年期国债收益率走势（FRED 圣路易斯联储权威数据），支持增量更新、自动代理 | [Tokooy/us-treasury-yields](https://github.com/Tokooy/us-treasury-yields) |
-| ▦ 二维码批量生成 | 读取 Excel「二维码编号」列批量生成二维码，输出 HTML / Excel | [Tokooy/QRcode_mouthly_work](https://github.com/Tokooy/QRcode_mouthly_work) |
+| 📈 美债收益率 | 2 / 10 / 30 年期美国国债收益率曲线（FRED 权威数据），按需联网增量更新 | [`apps/treasury/`](apps/treasury/README.md) |
+| ▦ 二维码批量生成 | 读取 Excel「二维码编号」列，批量生成二维码并输出 HTML / Excel | [`apps/qrcode/`](apps/qrcode/README.md) |
 
-> 随时可以添加新工具——每个工具放在自己的子目录里，并在 `hub/features.json` 中注册即可
-> （详见 [hub/README_zh.md](hub/README_zh.md)）。
+## 一、快速开始
 
-## 🪟 Windows 快速开始
+### Windows：单文件 exe（推荐给没装 Python 的机器）
 
-### 方式 A：使用打包好的 Toolbox.exe（推荐，无需安装 Python）
+1. 构建（在仓库根目录双击，或命令行执行）：
+   ```bat
+   packaging\windows\build_windows.bat
+   ```
+2. 产物 `dist\Toolbox.exe` 拷到任意 Windows 10/11 机器，**双击即用**（自带 Python 运行时）；
+3. 浏览器自动打开 <http://127.0.0.1:8080>，按 `Ctrl+C` 停止。
 
-1. 将 **`Toolbox.exe`**（见 Release 或按下方「构建 exe」自行打包）放到任意目录；
-2. **双击运行**，控制台窗口显示启动信息后，浏览器自动打开 <http://127.0.0.1:8080>；
-3. 停止服务：在 exe 的控制台窗口按 **Ctrl+C**。
+> ⚠️ 改了代码必须**重新打包**才会在 exe 里生效：前端、后端与依赖都被烘进了 exe。
+> 源码运行与 Docker 不受影响，读的永远是最新代码。
 
-exe 会**自动管理数据目录**（建在 exe 同目录下）：
+### 源码运行（任意平台，开发首选）
 
-```
-Toolbox.exe 所在目录/
-├── QRcode/
-│   ├── input/    ← 把待生成的 Excel 放这里（或在网页里直接上传）
-│   ├── output/   ← 生成的 HTML / Excel
-│   └── qrcodes/  ← 二维码图片缓存
-└── us-treasury-yields/
-    └── data/     ← 美债数据本地缓存（首次联网获取后离线可用）
-```
-
-> 💡 若把 `Toolbox.exe` 放到**本仓库根目录旁**（旁边已有 `QRcode/`、
-> `us-treasury-yields/` 文件夹），exe 会直接复用仓库内的数据目录，与源码数据互通。
-
-### 方式 B：源码运行（开发模式）
-
-```bat
-:: 1) 安装依赖（只需一次）
+```bash
+# 只有二维码生成需要第三方库；工具台本体与美债看板是纯标准库
 python -m pip install "qrcode[pil]" pillow openpyxl
 
-:: 2) 启动（需保持该窗口开启）
-cd hub
-python server.py
+python hub/server.py          # 打开 http://127.0.0.1:8080
+PORT=8081 python hub/server.py   # 换端口
 ```
 
-浏览器自动打开 <http://127.0.0.1:8080>。依赖说明：美债看板为纯标准库实现，
-无需任何第三方包；二维码生成需要 `qrcode[pil] / pillow / openpyxl`。
-
-## 🛠 构建 Windows exe
-
-仓库已内置打包配置（PyInstaller 单文件）：
-
-```bat
-:: 双击运行，或命令行执行
-build_windows.bat
-```
-
-等价手动步骤：
-
-```bat
-python -m pip install pyinstaller "qrcode[pil]" pillow openpyxl
-pyinstaller --clean --noconfirm toolbox.spec
-:: 产物：dist\Toolbox.exe
-```
-
-- 需要 **Python 3.8+**（建议 conda / miniconda 环境）与联网（首次安装依赖）；
-- 产物为单文件 **`dist\Toolbox.exe`**，可拷到任意 Windows 10/11 机器直接运行；
-- 打包细节见 [`toolbox.spec`](toolbox.spec)：二维码依赖内嵌、前端与脚本资源内置，
-  数据目录在运行时外置到 exe 旁（避免写入 exe 临时解包目录导致数据丢失）。
-
-### 🔄 更新 Toolbox.exe（重要：改完代码必须重新打包才生效）
-
-**为什么改了代码，双击 exe 却还是老样子？**
-`Toolbox.exe` 是 PyInstaller 单文件：前端页面、后端逻辑、两个工具的脚本都会在
-**打包那一刻固化进 exe 内部**（运行时解压到只读临时目录）。此后你修改或拉取的
-任何代码都不会进入已生成的 exe —— 源码运行（`python hub/server.py`）和 Docker
-每次读的都是最新文件，所以**只有 exe 会停留在旧版本**。看到 exe 行为与源码不一致时，
-先对比 exe 的生成时间与代码修改时间，多半是忘了重新打包。
-
-**更新步骤（每次改了代码、想用 exe 体验新版本时）：**
-
-1. **退出正在运行的旧版 Toolbox.exe**（否则 exe 文件被占用、覆盖会失败）：
-   在其控制台窗口按 `Ctrl+C`，或在任务管理器中结束 `Toolbox.exe` 进程；
-2. 拉取最新代码：`git pull`（或直接基于本地已修改的源码打包）；
-3. 重新打包（二选一；需要本机 Python 3.8+，首次运行会自动安装依赖）：
-   ```bat
-   :: 方式一：双击仓库根目录的 build_windows.bat
-   :: 方式二：命令行手动执行
-   python -m pip install pyinstaller "qrcode[pil]" pillow openpyxl
-   pyinstaller --clean --noconfirm toolbox.spec
-   ```
-4. 新产物在 `dist\Toolbox.exe`：用它**覆盖旧的 exe**（建议先把旧 exe 改名留作备份）；
-5. 双击新 exe 验证。**数据不受影响**：二维码输入/输出与美债缓存都存放在 exe 旁的
-   持久目录（`QRcode/input`、`QRcode/output`、`us-treasury-yields/data` 等），
-   覆盖更新 exe 不会清空或丢失任何数据。
-
-**常见问题**
-
-- 改了代码但 exe 没变化 → 忘了重新打包；重新执行第 3 步即可；
-- 覆盖 exe 提示“文件被占用 / 无法写入” → 先结束运行中的旧 Toolbox.exe 再覆盖；
-- 打开页面仍是旧界面 → 页面资源带 `?v=` 版本号且服务端返回 `Cache-Control: no-store`，
-  正常会自动加载新文件；仍异常时按 `Ctrl+F5` 强制刷新一次；
-- 新 exe 被安全软件隔离/删除 → 单文件 exe 由 PyInstaller 打包，部分杀软会误报，
-  参见下方「常见问题」；可在 VirusTotal 核查后添加信任。
-
-## 🐧 Linux / macOS 运行（原方案，仍可用）
+### Docker（服务器 / NAS / 无桌面环境）
 
 ```bash
-# 1) 安装（只需一次：创建 conda 环境 + 桌面快捷方式）
-cd hub
-bash install.sh
-
-# 2) 启动（桌面图标 / 应用菜单 / 命令行 任选）
-bash 启动.sh
+docker build -f packaging/docker/Dockerfile -t toolbox .
+docker run -d --name toolbox -p 8080:8080 -v toolbox_data:/app/data toolbox
+# 访问 http://<主机IP>:8080
 ```
 
-> Windows 与 Linux 使用同一份源码：Windows 把二维码生成改为进程内调用（不依赖
-> conda 环境），Linux/macOS 的 `install.sh` + `启动.sh` 流程保持不变。
-
-## 🐳 Docker 运行（推荐迁移 / 无桌面部署）
-
-把整个 Toolbox 容器化后，可在**任意装有 Docker 的机器**（Linux 服务器、NAS、VPS、
-云主机）一条命令跑起来，无需安装 Python、无需桌面环境 —— 最适合以后迁移。
-
-### 1. 构建镜像
+### Linux / macOS 桌面快捷方式
 
 ```bash
-docker build -t toolbox .
+bash packaging/linux/install.sh   # 创建 conda 环境 + 桌面图标 + 应用菜单
+bash packaging/linux/启动.sh       # 启动（双击桌面图标等价）
 ```
 
-> 镜像内已打包：hub 服务、Vue3 前端、二维码依赖（qrcode/pillow/openpyxl）与
-> **美债历史种子数据**（离线打开即有图）。构建产物约 240MB。
+> 三种方式的完整说明（含迁移、备份、数据卷）见 [packaging/README.md](packaging/README.md)。
 
-### 2. 运行
+## 二、每个工具都能单独运行
+
+不想用工具台时，直接跑单个工具即可（接口与前端面板和工具台内**完全一致**）：
 
 ```bash
-# 一次性前台运行（Ctrl+C 退出）：
-docker run --rm -p 8080:8080 toolbox
-
-# 推荐：后台守护运行，并挂载两个数据卷（数据不随容器销毁丢失）：
-docker run -d --name toolbox -p 8080:8080 \
-  -v toolbox_qr:/app/QRcode \
-  -v toolbox_treasury:/app/us-treasury-yields/data \
-  toolbox
+python apps/treasury/standalone.py   # 只有美债看板       → http://127.0.0.1:5000
+python apps/qrcode/standalone.py     # 只有二维码生成     → http://127.0.0.1:5001
+python apps/qrcode/cli.py            # 不开网页，命令行批量生成二维码
 ```
 
-启动后浏览器访问 **http://localhost:8080**（远程部署则访问 `http://<主机IP>:8080`）。
+## 三、数据放在哪里
 
-**数据卷说明**（迁移/备份的关键）：
+代码只读、数据可写，两者分离（打包成 exe / 挂数据卷时尤其重要）：
 
-| 数据卷 | 容器路径 | 内容 |
-| --- | --- | --- |
-| `toolbox_qr` | `/app/QRcode` | 二维码 Excel 输入 / HTML·Excel 输出 / PNG 缓存 |
-| `toolbox_treasury` | `/app/us-treasury-yields/data` | 美债数据缓存（首次联网更新后离线可用） |
-
-首次运行自动创建并初始化（会拷贝镜像内种子缓存），`docker rm` 删除容器**不会**删除卷，
-重跑同一条 `docker run` 即可接续旧数据。
-
-### 3. 日常管理
-
-```bash
-docker logs -f toolbox          # 查看服务日志
-docker stop toolbox && docker start toolbox   # 停止 / 重新启动
-docker restart toolbox          # 直接重启
-docker rm -f toolbox            # 删除容器（数据卷仍在）
-docker volume ls                # 查看数据卷（toolbox_qr / toolbox_treasury）
-docker exec -it toolbox sh      # 进入容器（例如手动放 Excel 到 /app/QRcode/input）
-docker cp 表格.xlsx toolbox:/app/QRcode/input/   # 或直接把文件拷进容器
+```
+data/
+├── treasury/   美债缓存 + FRED 原始 CSV 存档（随仓库提交，离线开箱即用）
+└── qrcode/     二维码 input（上传的 Excel）/ output（生成结果）/ qrcodes（PNG 缓存）
 ```
 
-### 4. 迁移到新机器
+数据根按优先级确定：`TOOLBOX_DATA_ROOT` 环境变量 ▸ exe 所在目录（打包运行）▸ 仓库根目录。
+所以 exe 放到哪，`data/` 就在哪，换台机器拷过去即可继续用。
 
-1. 新机器安装 Docker；
-2. 迁移数据（二选一）：
-   - 旧机器 `docker run --rm -v toolbox_qr:/from -v "$(pwd)":/to alpine cp -a /from/. /to/qr/` 备份卷内容，
-     或直接拷贝你自己生成的目录内容；
-   - 简单场景：把仓库拷到新机器（`git clone`），重新 `docker build` 即可，数据放卷里跟镜像走；
-3. 新机器上执行上面的 `docker run`（卷名一致即自动接续数据）。
-
-### 5. 说明与注意
-
-- 服务监听 `0.0.0.0:8080`（镜像内 `HOST=0.0.0.0`）供端口映射；端口冲突可改
-  `-p 8081:8080`；
-- 想换端口/地址：`docker run -e PORT=8080 -p 8081:8080 …`；
-- 容器内无浏览器，"自动打开浏览器"步骤会被服务安全忽略，直接用网页访问即可；
-- 仅暴露到可信网络（本机/内网）。若需公网访问，建议置于反向代理后；
-- 与 exe / 源码运行互不影响：三种方式共用同一份代码与功能。
-
-## 目录结构
+## 四、目录结构
 
 ```
 toolbox/
-├── QRcode/                 # 工具一：二维码批量生成（原项目，数据根可配置）
-├── us-treasury-yields/     # 工具二：美债收益率看板（原项目，仅改进数据获取）
-├── hub/                    # 整合层：统一服务端 + 前端
-│   ├── server.py           # 统一 Web 服务（纯 Python 标准库，兼容 exe 打包）
-│   ├── static/             # 单页前端（Vue3 + ECharts，本地离线托管）
-│   ├── features.json       # 功能注册表（动态增删工具）
-│   ├── install.sh / 启动.sh  # Linux/macOS 安装与启动脚本
-├── toolbox.spec            # PyInstaller 打包配置（Windows 单文件 exe）
-├── build_windows.bat       # Windows 一键构建脚本
-├── Dockerfile              # Docker 运行镜像（迁移 / 无桌面部署）
-├── .dockerignore           # 构建上下文排除规则
-└── README.md / README_zh.md
+├── core/          公共内核：路径解析 / HTTP 框架 / 任务与互斥 / 应用注册表（零业务逻辑）
+├── apps/          业务：一个工具 = 一个目录 = 后端 + 前端（+ 可选独立运行入口）
+│   ├── treasury/    美债收益率看板
+│   └── qrcode/      二维码批量生成
+├── hub/           工具台外壳：扫描 apps/ 装配路由、托管单页应用（不含业务逻辑）
+├── data/          运行时数据（见上）
+├── packaging/     交付：Windows exe / Docker / Linux 桌面安装
+├── tests/         冒烟测试
+└── ARCHITECTURE.md  架构说明（目录职责、依赖方向、接口与前端契约、如何新增工具）
 ```
 
-## GitHub 仓库关系
-
-三个仓库共享同一份代码，这是有意为之：
-
-- **[Tokooy/toolbox](https://github.com/Tokooy/toolbox)** —— **主仓库（Monorepo）**：整合后的
-  完整项目（全部工具 + `hub` 整合层 + Windows 打包配置）。从这里开始。
-- **[Tokooy/us-treasury-yields](https://github.com/Tokooy/us-treasury-yields)** —— 工具一的
-  独立仓库（美债看板本体，可单独使用）。
-- **[Tokooy/QRcode_mouthly_work](https://github.com/Tokooy/QRcode_mouthly_work)** —— 工具二的
-  独立仓库（二维码生成器本体，可单独使用）。
-
-独立仓库与 `toolbox/` 内的副本保持同步，不存在过时的重复副本。
-`toolbox/` 是整合发布版，独立仓库是各项目的独立入口。
-
-## 常见问题
-
-**端口被占用？**
-关闭旧实例，或换端口重启：
-
-```powershell
-# PowerShell
-$env:PORT=8088; python server.py
-```
-```bat
-:: CMD
-set PORT=8088 && python server.py
-```
-
-**美债数据获取失败 / 请求超时？**
-本工具已内置自动代理探测（Clash/v2ray 常见端口）。若仍失败，请确认本机网络可访问
-FRED，或设置代理环境变量后重启服务：
+## 五、验证
 
 ```bash
-export HTTPS_PROXY=http://127.0.0.1:7890
+python tests/smoke_test.py
 ```
 
-**杀毒软件误报？**
-单文件 exe 由 PyInstaller 打包，部分杀软会误报；如不放心可改用「方式 B」源码运行，
-或在 [VirusTotal](https://www.virustotal.com/) 核查后添加信任。
+零第三方依赖（除二维码生成需要 `openpyxl`），在临时数据目录里跑通
+「外壳 + 两个工具 + 各自独立运行」的全部核心链路，退出码 0 表示通过，可直接接 CI。
 
-## 特点
+## 六、常见问题
 
-- **一个页面，多种工具**：左侧功能列表切换，全程不刷新跳转；
-- **按需运行、互斥执行**：点哪个按钮运行哪个工具，任务不重叠（全局锁）；
-- **Vue 3 前端**：组件化单页应用，Vue 3.5 本地离线托管（无 CDN、无需构建），
-  深色玻璃拟态主题 + 克制的过渡动画；
-- **二维码分组扫码**：生成结果每 **3 个一组**展示，左右按钮「上一组 / 下一组」
-  翻页浏览，并实时显示生成**任务进度条**；
-- **离线友好**：ECharts 本地托管（无 CDN 依赖）；美债数据本地缓存，增量更新，
-  并针对国内网络做了自动代理探测；
-- **可动态扩展**：新工具只需放入子目录 + 在 `features.json` 注册。
+**Q：端口被占用？**
+A：换端口启动即可：`PORT=8081 python hub/server.py`（Windows PowerShell：`$env:PORT=8081; python hub/server.py`）。
+   启动时若端口冲突会直接给出提示。
+
+**Q：美债数据抓取失败？**
+A：内置自动代理探测（环境变量 + 常见本地代理端口 7890 / 7897 / 1080 等）。
+   仍失败时显式指定后重启：`export HTTPS_PROXY=http://127.0.0.1:7890`。
+   抓取失败**不影响**已缓存数据的展示。
+
+**Q：改了代码，exe 里还是旧界面？**
+A：重新执行 `packaging\windows\build_windows.bat`（覆盖前先退出正在运行的旧 exe）。
+
+**Q：页面看起来还是旧版本？**
+A：服务端对所有响应都带 `Cache-Control: no-store`，正常不会缓存；必要时 `Ctrl+F5` 强制刷新一次。
+
+**Q：杀毒软件报毒？**
+A：PyInstaller 单文件 exe 偶尔会被误报，可在 [VirusTotal](https://www.virustotal.com/) 核对，
+   或改用源码运行 / Docker 方式。
+
+## 七、技术栈与设计取向
+
+- **后端**：纯 Python 标准库（`http.server` / `urllib` / `csv`），零第三方依赖；
+  公共能力集中在 `core/`，业务在各 `apps/<工具>/backend/`，工具台外壳只做装配；
+- **前端**：Vue 3 + ECharts 5，**本地托管、无 CDN、无构建步骤**；
+  外壳（`hub/static`）负责导航与通知，各工具的面板（`apps/<工具>/frontend/panel.js`）按需加载；
+- **任务互斥**：所有重任务共用一把全局锁，同一时刻只运行一个，避免抢网络 / 磁盘；
+- **可扩展**：新增工具 = 新增一个 `apps/<id>/` 目录（清单 + 后端 + 前端），
+  不需要改 `hub` 里的任何文件 —— 详见 [ARCHITECTURE.md](ARCHITECTURE.md#五新增一个工具)。

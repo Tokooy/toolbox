@@ -2,6 +2,9 @@
 __pycache__/
 *.pyc
 
+# 冒烟测试的临时数据目录（tests/smoke_test.py 运行时生成，退出即清理）
+.smoke-*/
+
 # QRcode 敏感输入与生成产物
 QRcode/input/
 QRcode/output/

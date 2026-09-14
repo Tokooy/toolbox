@@ -849,7 +849,8 @@ const AppRoot = {
         const cfg = await api('/api/apps');
         store.appName = cfg.app_name || 'Toolbox 工具台';
         store.appSubtitle = cfg.app_subtitle || '';
-        store.features = (cfg.features || []).filter((f) => f.status === 'ready');
+        // 应用清单来自 apps/*/app.json（由宿主扫描后经 /api/apps 下发）
+        store.features = cfg.apps || [];
         store.active = store.features.length ? store.features[0].id : null;
         if (!store.active) toast('未发现已就绪的功能', 'err');
       } catch (err) {

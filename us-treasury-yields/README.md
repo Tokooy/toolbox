@@ -1,5 +1,10 @@
 # 美国国债收益率看板 · US Treasury Yield Dashboard
 
+> ⚠️ **结构重构进行中**：本工具的后端已迁移到 `apps/treasury/backend/`（网络 / 存储 / 业务 / 接口 四层），
+> 由工具台 `hub` 统一托管；本目录里剩下的静态页面、数据与脚本将在后续步骤中一并搬迁。
+> 新的目录约定与整体架构见 [ARCHITECTURE.md](../ARCHITECTURE.md)，重构完成后本文档会搬到 `apps/treasury/README.md`。
+
+
 一个本地运行的网页应用：**从 2020 年至今**，用三种颜色分别展示美国 **2 年期 / 10 年期 / 30 年期** 国债收益率的走势曲线，并支持鼠标滚轮缩放时间轴、按需联网更新数据。
 
 > English version: [README_en.md](README_en.md)

@@ -1,0 +1,13 @@
+{
+  "id": "qrcode",
+  "name": "二维码批量生成",
+  "desc": "读取 Excel 编号批量生成二维码，输出 HTML / Excel",
+  "icon": "qr",
+  "order": 20,
+  "enabled": true,
+  "backend": "backend.api",
+  "frontend": {
+    "entry": "panel.js",
+    "style": "panel.css"
+  }
+}

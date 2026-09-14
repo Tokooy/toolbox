@@ -1,0 +1,13 @@
+{
+  "id": "treasury",
+  "name": "美债收益率",
+  "desc": "2Y / 10Y / 30Y 国债收益率走势 · FRED 权威数据",
+  "icon": "chart",
+  "order": 10,
+  "enabled": true,
+  "backend": "backend.api",
+  "frontend": {
+    "entry": "panel.js",
+    "style": "panel.css"
+  }
+}

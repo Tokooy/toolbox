@@ -1,5 +1,10 @@
 # 二维码批量生成器
 
+> ⚠️ **结构重构进行中**：生成逻辑已迁移到 `apps/qrcode/backend/generator.py`，网页接口在
+> `apps/qrcode/backend/api.py`，由工具台 `hub` 统一托管；新的目录约定见
+> [ARCHITECTURE.md](../ARCHITECTURE.md)，重构完成后本文档会搬到 `apps/qrcode/README.md`。
+
+
 根据 Excel 表格中的编号，批量生成二维码，同时输出 HTML 网页和 Excel 文件。
 
 ## 环境准备

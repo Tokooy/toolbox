@@ -1,5 +1,10 @@
 # US Treasury Yield Dashboard
 
+> ⚠️ **Restructuring in progress**: the backend of this tool now lives in `apps/treasury/backend/`
+> (network / storage / service / API layers) and is hosted by the `hub` workbench. The remaining
+> static pages, data and scripts in this folder will follow in later steps. See
+> [ARCHITECTURE.md](../ARCHITECTURE.md); this document will move to `apps/treasury/README_en.md`.
+
 A local web application that plots the **US Treasury yield curves** — **2-Year / 10-Year / 30-Year** — from **2020 to today**, with a polished dark UI, mouse-wheel zoom on the time axis, and on-demand data refresh.
 
 > 中文版说明见 [README.md](README.md) · Chinese version: [README.md](README.md)

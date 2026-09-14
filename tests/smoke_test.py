@@ -125,6 +125,23 @@ def main() -> int:
         status, _, body = request('GET', asset)
         check('静态资源 %s' % asset, status == 200 and len(body) > 0, 'status=%s' % status)
 
+    # 外壳 + 宿主 SDK + 各应用前端：必须是可被浏览器当作 ES module 执行的 MIME 类型
+    for asset in ('/static/shell.js', '/static/shell.css', '/static/sdk/runtime.js',
+                  '/static/sdk/api.js', '/static/sdk/ui.js', '/static/sdk/icons.js'):
+        status, headers, body = request('GET', asset)
+        check('外壳资源 %s' % asset, status == 200 and len(body) > 0, 'status=%s' % status)
+
+    for asset in ('/apps/treasury/panel.js', '/apps/treasury/panel.css',
+                  '/apps/qrcode/panel.js', '/apps/qrcode/panel.css'):
+        status, headers, body = request('GET', asset)
+        ok = status == 200 and len(body) > 0
+        if asset.endswith('.js'):
+            ok = ok and 'javascript' in headers.get('Content-Type', '')
+        check('应用前端资源 %s' % asset, ok, 'status=%s type=%s' % (status, headers.get('Content-Type')))
+
+    status, _, body = request('GET', '/')
+    check('外壳页面加载 shell.js', b'/static/shell.js' in body and b'shell.css' in body)
+
     for attack in ('/static/..%2f..%2fhub/server.py', '/static/%2e%2e/%2e%2e/hub/server.py'):
         status, _, _ = request('GET', attack)
         check('静态资源拒绝目录穿越 %s' % attack, status == 404, 'status=%s' % status)

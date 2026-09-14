@@ -1,0 +1,149 @@
+/* ============================================================
+   美债收益率看板 · 面板样式
+   （只包含本工具独有的组件：概览卡片、迷你走势、图表卡片）
+   ============================================================ */
+
+.update-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.panel-foot {
+  margin: 22px auto 6px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--faint);
+  line-height: 2;
+}
+.panel-foot a { color: #7aa2f7; text-decoration: none; }
+.panel-foot a:hover { text-decoration: underline; }
+
+.swatch {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+  background: var(--c);
+  margin: 0 5px 0 2px;
+  vertical-align: 0.5px;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: clamp(12px, 1.4vw, 20px);
+  margin-bottom: 18px;
+}
+
+.stat-card {
+  position: relative;
+  overflow: hidden;
+  padding: 18px 20px 16px;
+  border-radius: var(--radius);
+  background: var(--card);
+  border: 1px solid var(--border);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+}
+.stat-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(255, 255, 255, 0.18);
+  background: var(--card-hover);
+}
+.stat-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 3px;
+  background: var(--accent, var(--c10y));
+  opacity: 0.85;
+}
+
+.stat-label { font-size: 12.5px; color: var(--muted); letter-spacing: 0.6px; }
+.stat-value {
+  margin-top: 7px;
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent, var(--text));
+}
+.stat-value .unit { font-size: 15px; font-weight: 500; margin-left: 2px; color: var(--muted); }
+
+.stat-change {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+.stat-change .up { color: var(--green); }
+.stat-change .down { color: var(--red); }
+.stat-change .flat { color: var(--muted); }
+.stat-change .delta-label { color: var(--faint); font-size: 11.5px; }
+
+.stat-badge {
+  display: inline-block;
+  margin-top: 9px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.stat-badge.inverted { color: var(--red); background: rgba(248, 113, 113, 0.13); border: 1px solid rgba(248, 113, 113, 0.3); }
+.stat-badge.normal { color: var(--green); background: rgba(52, 211, 153, 0.12); border: 1px solid rgba(52, 211, 153, 0.28); }
+
+.spark {
+  display: block;
+  width: 100%;
+  height: 34px;
+  margin-top: 12px;
+  border-radius: 6px;
+}
+
+.chart-card {
+  padding: 22px 22px 10px;
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  border: 1px solid var(--border);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
+}
+
+.chart-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding: 0 4px 6px;
+}
+.chart-head h3 { font-size: 16px; font-weight: 650; letter-spacing: 0.3px; }
+.chart-tip { margin-top: 4px; font-size: 12.5px; color: var(--faint); }
+
+/* 图表高度随视口高度自适应：大屏更高、小屏更矮 */
+.chart { width: 100%; height: clamp(400px, 50vh, 580px); }
+
+/* ---------------- 响应式 ---------------- */
+
+@media (max-width: 1080px) {
+  .stats { grid-template-columns: repeat(2, 1fr); }
+  .chart { height: 460px; }
+}
+
+@media (max-width: 640px) {
+  .stats { grid-template-columns: 1fr; }
+  .chart { height: 400px; }
+}
+
+@media (min-width: 1800px) {
+  .chart { height: clamp(440px, 52vh, 600px); }
+  .stat-value { font-size: 32px; }
+}

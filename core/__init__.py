@@ -13,4 +13,4 @@
 依赖方向：``apps/* -> core``，``hub -> core + apps/*``；``core`` 不反向依赖任何业务代码。
 """
 
-__all__ = ['http', 'paths', 'registry', 'tasks']
+__all__ = ['http', 'paths', 'registry', 'standalone', 'tasks']

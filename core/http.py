@@ -27,10 +27,41 @@ from urllib.parse import parse_qs, quote, unquote, urlparse
 
 __all__ = [
     'Router', 'StaticMount', 'Request', 'make_handler', 'make_server',
-    'serve_forever', 'port_error_hint', 'configure_console',
+    'serve_forever', 'port_error_hint', 'configure_console', 'content_type_for',
 ]
 
 _PARAM_RE = re.compile(r'<(?:(?P<kind>\w+):)?(?P<name>\w+)>')
+
+# Web 资源类型写死：Windows 上 mimetypes 会读注册表，个别机器会把 .js 认成 text/plain，
+# 而浏览器对 ES module 的 MIME 类型是严格校验的（text/plain 直接拒绝执行）。
+_WEB_TYPES = {
+    '.js': 'text/javascript',
+    '.mjs': 'text/javascript',
+    '.css': 'text/css',
+    '.html': 'text/html; charset=utf-8',
+    '.json': 'application/json; charset=utf-8',
+    '.svg': 'image/svg+xml',
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.gif': 'image/gif',
+    '.ico': 'image/x-icon',
+    '.webp': 'image/webp',
+    '.woff': 'font/woff',
+    '.woff2': 'font/woff2',
+    '.map': 'application/json; charset=utf-8',
+    '.txt': 'text/plain; charset=utf-8',
+    '.csv': 'text/csv; charset=utf-8',
+    '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+}
+
+
+def content_type_for(path) -> str:
+    """按扩展名给出响应类型：优先内置表，其次系统 mimetypes。"""
+    suffix = Path(path).suffix.lower()
+    if suffix in _WEB_TYPES:
+        return _WEB_TYPES[suffix]
+    return mimetypes.guess_type(str(path))[0] or 'application/octet-stream'
 
 
 def _compile(pattern: str):
@@ -163,8 +194,7 @@ class Request:
         if not path.is_file():
             self.send_error(404, 'Not Found')
             return
-        guessed = content_type or mimetypes.guess_type(str(path))[0]
-        self.send_bytes(path.read_bytes(), guessed or 'application/octet-stream',
+        self.send_bytes(path.read_bytes(), content_type or content_type_for(path),
                         filename=filename)
 
     def redirect(self, location: str, status: int = 302):

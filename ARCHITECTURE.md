@@ -45,7 +45,12 @@ toolbox/
 ├── hub/                   工具台外壳：只做“聚合与托管”，不含业务逻辑
 │   ├── server.py            统一 Web 服务入口（扫描 apps/、挂路由、挂静态资源）
 │   ├── hub.json             外壳配置（应用名 / 副标题）
-│   └── static/              外壳前端（单页应用壳 + 宿主 SDK + 本地依赖库）
+│   └── static/              外壳前端
+│       ├── index.html         单页应用入口（本地托管 Vue / ECharts，无 CDN、无构建）
+│       ├── shell.js           外壳：顶栏 / 侧栏 / 按需加载应用面板
+│       ├── shell.css          设计系统与布局（顶栏、侧栏、按钮、卡片、弹窗、Toast）
+│       ├── sdk/               宿主 SDK：runtime / api / ui / icons（面板只用这些）
+│       └── vendor/            本地依赖库：vue.global.prod.js、echarts.min.js
 │
 ├── data/                  运行时数据（与代码分离，可直接挂数据卷 / 放在 exe 旁边）
 │   ├── treasury/            美债缓存与 FRED 原始 CSV 存档（种子数据随仓库提交）
@@ -101,14 +106,26 @@ def on_startup(ctx):         # 可选：服务可访问之后执行的后台初�
 
 ```js
 export default {
+  name: 'treasury-panel',
   template: `<section class="panel" v-show="isActive">…</section>`,
   props: { active: String },        // 宿主传入当前激活的工具 id
   setup(props) { /* 通过 /static/sdk/* 使用宿主能力 */ },
 };
 ```
 
-宿主 SDK（`hub/static/sdk/`）向前端面板提供：Vue 与 ECharts 引用、`api()` 请求封装、
-`store`（全局状态）、`toast()` / 弹窗组件、图标常量。
+* 面板根节点自己用 `v-show` 控制显隐（外壳把所有已加载面板常驻 DOM，
+  因此切换工具不会丢失图表缩放、二维码翻页等状态）；
+* 面板是 ES module，由外壳用 `import('/apps/<id>/panel.js')` 按需加载，
+  对应样式 `/apps/<id>/panel.css` 也在首次打开该工具时才注入 —— 打开工具台不会加载任何工具的界面。
+
+**宿主 SDK**（`hub/static/sdk/`，外壳与所有面板共用，面板不要自己再造一套）：
+
+| 模块 | 导出 | 用途 |
+| --- | --- | --- |
+| `sdk/runtime.js` | `Vue`、`echarts` | 本地托管的依赖库引用（无 CDN、无构建步骤） |
+| `sdk/api.js` | `api()`、`sleep()` | 统一 JSON 请求封装（失败抛出后端 `error` 文案）、延时 |
+| `sdk/ui.js` | `store`、`toast()`、`openModal()` / `setModalBody()` / `scheduleModalClose()` / `keepModalOpen()` / `closeModal()`、`modalState`、`ModalBox`、`ToastBox` | 全局状态、通知与弹窗组件 |
+| `sdk/icons.js` | `ICONS` | 内联 SVG 图标常量（`app.json` 的 `icon` 取这里的键名） |
 
 ### 4.4 数据目录
 
@@ -134,11 +151,14 @@ export default {
 | `apps/treasury/backend` | 美债后端四层拆分 | ✅ 完成 |
 | `apps/qrcode/backend` | 二维码生成逻辑与接口拆分 | ✅ 完成 |
 | `hub/server.py` | 宿主化：扫描 `apps/` 装配路由 | ✅ 完成 |
-| `apps/*/frontend` | 前端面板从 hub 抽回各自应用 | ⏳ 进行中 |
-| `hub/static` | 外壳 + 宿主 SDK（替换单体 app.js） | ⏳ 进行中 |
+| `apps/*/frontend` | 前端面板从 hub 抽回各自应用 | ✅ 完成 |
+| `hub/static` | 外壳 + 宿主 SDK（替换单体 app.js） | ✅ 完成 |
 | `data/` | 数据目录与应用代码分离 | ⏳ 待办 |
 | `apps/*/standalone.py`、`cli.py` | 各工具独立运行入口 | ⏳ 待办 |
 | `packaging/` | exe / Docker / Linux 安装脚本归位 | ⏳ 待办 |
+
+> 重构期内的每一笔提交都保证「工具台可用」：先落后端分层，再落前端分层，
+> 最后搬迁数据目录与交付脚本，任何一步都不会让两个功能失效。
 
 ## 七、验证
 

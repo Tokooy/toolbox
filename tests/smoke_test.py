@@ -37,8 +37,8 @@ _TMP_DATA = ROOT / ('.smoke-%d' % os.getpid())
 _TMP_DATA.mkdir(parents=True, exist_ok=True)
 os.environ['TOOLBOX_DATA_ROOT'] = str(_TMP_DATA)
 
-from core import http, paths, registry        # noqa: E402
-from hub import server as hub                 # noqa: E402
+from core import http, paths, registry, standalone   # noqa: E402
+from hub import server as hub                        # noqa: E402
 
 PASSED, FAILED = [], []
 PORT = 0
@@ -53,9 +53,9 @@ def check(name: str, condition: bool, detail: str = ''):
         print('  ✗ %s %s' % (name, detail))
 
 
-def request(method: str, path: str, data: bytes | None = None):
+def request(method: str, path: str, data: bytes | None = None, port: int | None = None):
     """返回 ``(status, headers, body_bytes)``，4xx/5xx 不抛异常。"""
-    url = 'http://127.0.0.1:%d%s' % (PORT, path)
+    url = 'http://127.0.0.1:%d%s' % (port or PORT, path)
     req = urllib.request.Request(url, data=data, method=method)
     try:
         with urllib.request.urlopen(req, timeout=30) as resp:
@@ -64,8 +64,8 @@ def request(method: str, path: str, data: bytes | None = None):
         return exc.code, dict(exc.headers), exc.read()
 
 
-def json_of(method: str, path: str, data: bytes | None = None):
-    status, _, body = request(method, path, data)
+def json_of(method: str, path: str, data: bytes | None = None, port: int | None = None):
+    status, _, body = request(method, path, data, port)
     try:
         return status, json.loads(body.decode('utf-8'))
     except (ValueError, UnicodeDecodeError):
@@ -89,6 +89,38 @@ def make_excel(path: Path, codes):
     for index, code in enumerate(codes, start=2):
         sheet.cell(row=index, column=1).value = code
     workbook.save(str(path))
+
+
+def check_standalone(apps, probe_path: str, probe_field: str):
+    """验证单个工具能脱离工具台独立运行（同一套接口与前端资源）。"""
+    app = next(item for item in apps if probe_path.startswith('/api/%s/' % item.id))
+    router = standalone.build_router(app)
+    mounts = [http.StaticMount('/static', paths.STATIC_DIR),
+              http.StaticMount('/apps/%s' % app.id, app.frontend_dir)]
+    server = http.make_server('127.0.0.1', 0, router, mounts, 'SmokeStandalone')
+    port = server.server_address[1]
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        status, _, body = request('GET', '/', port=port)
+        check('独立运行 %s：单工具首页' % app.id,
+              status == 200 and ('/apps/%s/panel.js' % app.id).encode('utf-8') in body,
+              'status=%s' % status)
+
+        status, headers, _ = request('GET', '/apps/%s/panel.js' % app.id, port=port)
+        check('独立运行 %s：面板资源' % app.id,
+              status == 200 and 'javascript' in headers.get('Content-Type', ''),
+              'status=%s' % status)
+
+        status, payload = json_of('GET', probe_path, port=port)
+        check('独立运行 %s：接口 %s' % (app.id, probe_path),
+              status == 200 and probe_field in payload, str(payload)[:120])
+
+        status, payload = json_of('GET', '/api/apps', port=port)
+        check('独立运行 %s：清单只含本工具' % app.id,
+              [item['id'] for item in payload.get('apps', [])] == [app.id],
+              str(payload.get('apps')))
+    finally:
+        server.shutdown()
 
 
 def main() -> int:
@@ -220,6 +252,10 @@ def main() -> int:
 
     status, payload = json_of('GET', '/api/qrcode/result')
     check('GET /api/qrcode/result 回显结果', status == 200 and payload.get('has_result') is True)
+
+    # ---------------- 各工具独立运行（core/standalone.py） ----------------
+    check_standalone(apps, '/api/treasury/data', 'dates')
+    check_standalone(apps, '/api/qrcode/status', 'input_files')
 
     # ---------------- 汇总 ----------------
     server.shutdown()

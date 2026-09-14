@@ -31,15 +31,17 @@ toolbox/
 │
 ├── apps/                  业务：一个工具 = 一个目录 = 前端 + 后端（+ 可选独立入口）
 │   ├── treasury/          美债收益率看板
-│   │   ├── app.json         清单：名称/图标/排序/前端入口/后端模块
+│   │   ├── app.json         清单：名称/图标/排序/前端入口/后端模块/独立运行端口
 │   │   ├── backend/         后端：fred.py(网络) → store.py(存储) → service.py(业务) → api.py(接口)
 │   │   ├── frontend/        前端：panel.js（Vue 面板组件）+ panel.css
 │   │   ├── standalone.py    独立 Web 入口：只有美债看板的单工具站点
-│   │   └── README.md        本工具的说明（含数据来源与抓取策略）
+│   │   ├── seed_data.py     可选：用 raw/ 原始 CSV 重建缓存（不联网）
+│   │   └── README.md        本工具的说明（数据来源、抓取策略、FAQ）
 │   └── qrcode/            二维码批量生成
 │       ├── backend/         generator.py(生成逻辑) + service.py(目录/上传/结果) + api.py(接口)
 │       ├── frontend/        panel.js + panel.css
 │       ├── cli.py           命令行入口（不启动网页也能批量生成）
+│       ├── standalone.py    独立 Web 入口
 │       └── README.md
 │
 ├── hub/                   工具台外壳：只做“聚合与托管”，不含业务逻辑
@@ -54,10 +56,15 @@ toolbox/
 │
 ├── data/                  运行时数据（与代码分离，可直接挂数据卷 / 放在 exe 旁边）
 │   ├── treasury/            美债缓存与 FRED 原始 CSV 存档（种子数据随仓库提交）
-│   └── qrcode/              二维码 input / output / qrcodes
+│   └── qrcode/              二维码 input / output / qrcodes（用户数据，不入库）
 │
 ├── packaging/             交付：Windows 单文件 exe、Docker 镜像、Linux 桌面安装
-├── tests/smoke_test.py    冒烟测试：一条命令跑通宿主 + 两个工具的核心链路
+│   ├── windows/             toolbox.spec + build_windows.bat
+│   ├── docker/              Dockerfile
+│   ├── linux/               install.sh / 启动.sh / environment.yml / icon.svg
+│   └── README.md            三种交付方式与数据目录约定
+│
+├── tests/smoke_test.py    冒烟测试：一条命令跑通宿主 + 两个工具 + 各自的独立运行
 └── README.md              使用说明（安装、运行、部署、FAQ）
 ```
 
@@ -134,6 +141,29 @@ export default {
 * 代码目录只读、数据目录可写 —— 打包成单文件 exe 后代码解包在只读临时目录里，
   数据必须落在 exe 旁边才不会丢。
 
+| 目录 | 内容 | 是否入库 |
+| --- | --- | --- |
+| `data/treasury/` | 美债缓存 `treasury_yields.csv` / `meta.json` + `raw/` 原始 CSV 存档 | ✅ 入库（离线开箱即用，raw 可溯源） |
+| `data/qrcode/` | `input/`（上传的 Excel）、`output/`（生成的 HTML / Excel）、`qrcodes/`（PNG 缓存） | ❌ 用户数据，`.gitignore` 排除 |
+
+> 升级过渡：`core.paths.app_data_dir()` 带旧目录回退 —— 若新版目录尚不存在而旧版
+> （`QRcode/`、`us-treasury-yields/data/`）存在，则继续沿用旧目录，避免升级后数据“消失”。
+> 把数据搬到 `data/` 后自动切换；显式设置了 `TOOLBOX_DATA_ROOT` 时不回退。
+
+### 4.5 单独运行（不经过工具台）
+
+每个工具都能脱离 `hub` 独立运行，用的是同一套 `core/http.py` 与同一份前端面板：
+
+| 入口 | 说明 | 默认端口 |
+| --- | --- | --- |
+| `python hub/server.py` | 工具台：所有工具装进同一个页面 | 8080 |
+| `python apps/treasury/standalone.py` | 只有美债看板 | 5000 |
+| `python apps/qrcode/standalone.py` | 只有二维码生成 | 5001 |
+| `python apps/qrcode/cli.py` | 命令行批量生成，不开网页 | — |
+
+接口路径两边完全一致（`/api/<id>/**`），端口可用 `PORT` 环境变量覆盖；
+`TOOLBOX_NO_BROWSER=1` 可禁止自动打开浏览器（服务器 / 容器 / CI 场景）。
+
 ## 五、新增一个工具
 
 1. 建目录 `apps/<id>/`，写 `app.json`（`id` / `name` / `icon` / `backend` / `frontend`）；
@@ -153,9 +183,9 @@ export default {
 | `hub/server.py` | 宿主化：扫描 `apps/` 装配路由 | ✅ 完成 |
 | `apps/*/frontend` | 前端面板从 hub 抽回各自应用 | ✅ 完成 |
 | `hub/static` | 外壳 + 宿主 SDK（替换单体 app.js） | ✅ 完成 |
-| `data/` | 数据目录与应用代码分离 | ⏳ 待办 |
-| `apps/*/standalone.py`、`cli.py` | 各工具独立运行入口 | ⏳ 待办 |
-| `packaging/` | exe / Docker / Linux 安装脚本归位 | ⏳ 待办 |
+| `data/` | 数据目录与应用代码分离（旧目录已清理） | ✅ 完成 |
+| `apps/*/standalone.py`、`cli.py` | 各工具独立运行入口 | ✅ 完成 |
+| `packaging/` | exe / Docker / Linux 安装脚本归位 | ⏳ 进行中 |
 
 > 重构期内的每一笔提交都保证「工具台可用」：先落后端分层，再落前端分层，
 > 最后搬迁数据目录与交付脚本，任何一步都不会让两个功能失效。

@@ -5,6 +5,7 @@
   "icon": "qr",
   "order": 20,
   "enabled": true,
+  "standalonePort": 5001,
   "backend": "backend.api",
   "frontend": {
     "entry": "panel.js",

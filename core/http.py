@@ -17,6 +17,7 @@ Toolbox 里所有 Web 服务（多工具宿主 ``hub`` 与单工具 ``standalone
 
 import json
 import mimetypes
+import os
 import re
 import sys
 import threading
@@ -289,6 +290,8 @@ def serve_forever(server, url: str, banner=(), open_browser: bool = True,
 
     ``before_serve`` 用于应用自己的启动逻辑（例如首次运行后台拉取数据），
     放在服务可响应之后执行，保证慢网络不会阻塞页面打开。
+
+    设 ``TOOLBOX_NO_BROWSER=1`` 可禁止自动打开浏览器（服务器 / CI / 容器里有用）。
     """
     configure_console()
     print()
@@ -299,7 +302,7 @@ def serve_forever(server, url: str, banner=(), open_browser: bool = True,
     if before_serve is not None:
         threading.Thread(target=before_serve, daemon=True).start()
 
-    if open_browser:
+    if open_browser and not os.environ.get('TOOLBOX_NO_BROWSER'):
         try:
             webbrowser.open(url + open_path)
         except Exception:                          # noqa: BLE001 - 无桌面环境时忽略

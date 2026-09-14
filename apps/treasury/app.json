@@ -5,6 +5,7 @@
   "icon": "chart",
   "order": 10,
   "enabled": true,
+  "standalonePort": 5000,
   "backend": "backend.api",
   "frontend": {
     "entry": "panel.js",

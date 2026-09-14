@@ -5,7 +5,12 @@ __pycache__/
 # 冒烟测试的临时数据目录（tests/smoke_test.py 运行时生成，退出即清理）
 .smoke-*/
 
-# QRcode 敏感输入与生成产物
+# 运行时数据：二维码的输入 / 输出 / 图片缓存属于用户数据，不入库
+# （美债种子缓存在 data/treasury/，需要随仓库提交，见下方说明）
+data/qrcode/*
+!data/qrcode/.gitignore
+
+# 旧版目录（升级过渡期保留，避免历史数据被误提交；可自行删除）
 QRcode/input/
 QRcode/output/
 QRcode/qrcodes/

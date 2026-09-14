@@ -258,12 +258,14 @@ def write_excel(codes: list[str], qr_map: dict[str, Path], output_path: Path,
 # 主流程
 # --------------------------------------------------------------------------
 
-def run(data_root=None, log=print) -> dict:
+def run(data_root=None, log=print, excel_path=None) -> dict:
     """按指定数据根执行一次完整生成流程。
 
     ``data_root`` 决定 input / output / qrcodes 三个目录的位置，默认取本文件的上一级
     目录（即 ``apps/qrcode/``，与命令行独立运行一致）；被工具台调用时传入
     ``<数据根>/qrcode``，与代码目录分离。
+
+    ``excel_path`` 指定时直接读取该文件，不再扫描 ``input/`` 目录（命令行 ``--excel`` 用）。
 
     返回本次运行的结果摘要；业务错误抛 :class:`GeneratorError`。
     """
@@ -277,7 +279,12 @@ def run(data_root=None, log=print) -> dict:
     log('\n[1/5] 清理上次运行的旧文件...')
     clean_outputs(dirs, log=log)
 
-    excel_path = find_input_excel(dirs)
+    if excel_path is not None:
+        excel_path = Path(excel_path).resolve()
+        if not excel_path.is_file():
+            raise GeneratorError('指定的 Excel 不存在：%s' % excel_path)
+    else:
+        excel_path = find_input_excel(dirs)
     log('\n[2/5] 读取输入文件: %s' % excel_path.name)
 
     codes = read_codes(excel_path, log=log)

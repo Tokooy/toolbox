@@ -58,7 +58,7 @@ const AppRoot = {
   components: { ModalBox, ToastBox },
   template: `
   <div>
-    <div class="bg-glow" aria-hidden="true"></div>
+    <a class="skip-link" href="#workspace">跳到主要内容</a>
 
     <!-- 顶栏 -->
     <header class="topbar">
@@ -72,13 +72,13 @@ const AppRoot = {
         </div>
         <div class="brand-text">
           <h1>{{ store.appName }}</h1>
-          <p>{{ store.appSubtitle }}</p>
+          <p>让日常工作，井然有序。</p>
         </div>
       </div>
-      <div class="topbar-right">
+      <div class="topbar-right"><span class="workspace-label">个人工作空间</span>
         <div class="task-indicator">
           <span class="status-dot" :class="store.taskBusy ? 'busy' : 'ok'"></span>
-          <span>{{ store.taskBusy ? '运行中：' + store.taskName + '…' : '空闲 · 无任务运行' }}</span>
+          <span>{{ store.taskBusy ? '运行中：' + store.taskName + '…' : '工作台已就绪' }}</span>
         </div>
       </div>
     </header>
@@ -86,16 +86,16 @@ const AppRoot = {
     <div class="layout" :class="{ 'sidebar-collapsed': store.sidebarCollapsed }">
       <!-- 侧栏：功能按钮由 /api/apps 动态生成 -->
       <nav class="sidebar" aria-label="功能导航">
-        <button class="sidebar-toggle" type="button" title="收起 / 展开侧栏" @click="toggleSidebar">
+        <button class="sidebar-toggle" type="button" title="收起 / 展开侧栏" :aria-expanded="!store.sidebarCollapsed" aria-label="收起或展开功能导航" @click="toggleSidebar">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
                stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
         </button>
-        <div class="sidebar-head"><span class="sidebar-title">功能列表</span></div>
+        <div class="sidebar-head"><span class="sidebar-title">工作空间</span></div>
         <div class="feature-list">
           <button v-for="app in store.apps" :key="app.id" type="button"
-                  class="feature-btn" :class="{ active: store.active === app.id }" @click="activate(app.id)">
+                  class="feature-btn" :class="{ active: store.active === app.id }" :aria-current="store.active === app.id ? 'page' : null" @click="activate(app.id)">
             <span class="fb-icon" v-html="iconOf(app)"></span>
-            <span class="fb-name">{{ app.name }}</span>
+            <span class="fb-copy"><span class="fb-name">{{ app.name }}</span><span class="fb-description">{{ app.id === 'treasury' ? '市场数据与趋势' : app.id === 'qrcode' ? '高效批量生成' : '打开工具' }}</span></span>
           </button>
         </div>
         <div class="sidebar-icons">
@@ -105,22 +105,21 @@ const AppRoot = {
             <span v-html="iconOf(app)"></span>
           </button>
         </div>
-        <div class="sidebar-foot">功能按钮由 apps/*/app.json 自动生成<br/>新增工具只需加一个目录</div>
+        <div class="sidebar-foot"><span class="sidebar-note-icon" v-html="ICONS.plus"></span><strong>专注每一件小事</strong><span>实用工具，触手可及。</span></div>
       </nav>
 
       <!-- 主内容区：已加载的面板常驻 DOM，各自用 v-show 控制显隐 -->
-      <main class="main">
+      <main class="main" id="workspace" tabindex="-1"><div class="workspace-path">工作空间 <span>/</span> {{ activeName }}</div>
         <component v-for="panel in loaded" :key="panel.id" :is="panel.component"
                    :active="store.active"></component>
 
-        <section class="panel-loading" v-if="state.loadingId">正在加载面板…</section>
+        <section class="panel-loading" role="status" v-if="!state.ready || state.loadingId">正在加载面板…</section>
 
         <section class="panel-error" v-if="state.error">
           <h3>面板加载失败</h3>
           <p>{{ state.error.message }}</p>
-          <p>请确认 <code>apps/{{ state.error.id }}/frontend/</code> 下存在
-             <code>app.json</code> 里声明的入口文件。</p>
-          <button class="btn btn-accent btn-sm" type="button" @click="activate(state.error.id)">重新加载</button>
+          <p>请重试加载，或稍后刷新页面。</p>
+          <button class="btn btn-accent btn-sm" type="button" @click="state.error.id ? activate(state.error.id) : reload()">重新加载</button>
         </section>
       </main>
     </div>
@@ -143,12 +142,14 @@ const AppRoot = {
         else toast('未发现已启用的工具（检查 apps/*/app.json）', 'err');
       } catch (err) {
         state.ready = true;
+        state.error = { id: null, message: '暂时无法连接工作台，请刷新重试。' };
         toast('应用清单加载失败：' + err.message, 'err');
       }
     }
     init();
 
-    return { store, state, loaded, activate, toggleSidebar, iconOf };
+    const activeName = Vue.computed(() => store.apps.find(app => app.id === store.active)?.name || '工具台');
+    return { store, state, loaded, activate, toggleSidebar, iconOf, activeName, reload: () => window.location.reload() };
   },
 };
 

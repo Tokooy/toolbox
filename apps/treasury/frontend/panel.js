@@ -265,7 +265,7 @@ export default {
         return;
       }
       Vue.nextTick(() => {
-        if (!state.chart) state.chart = echarts.init(chartEl.value);
+        if (!state.chart) state.chart = Vue.markRaw(echarts.init(chartEl.value));
         state.chart.setOption(buildOption(d), { notMerge: true });
         setRange(state.range);
         bindChartClick();

@@ -149,7 +149,7 @@ const AppRoot = {
     init();
 
     const activeName = Vue.computed(() => store.apps.find(app => app.id === store.active)?.name || '工具台');
-    return { store, state, loaded, activate, toggleSidebar, iconOf, activeName, reload: () => window.location.reload() };
+    return { store, state, loaded, activate, toggleSidebar, iconOf, ICONS, activeName, reload: () => window.location.reload() };
   },
 };
 

@@ -14,11 +14,11 @@ import { ICONS } from '/static/sdk/icons.js';
    ============================================================ */
 
 const SERIES_META = {
-  DGS2:  { label: '2 年期',  color: '#fbbf24' },
-  DGS10: { label: '10 年期', color: '#38bdf8' },
-  DGS30: { label: '30 年期', color: '#a78bfa' },
+  DGS2:  { label: '2 年期',  color: '#b57816' },
+  DGS10: { label: '10 年期', color: '#3563e9' },
+  DGS30: { label: '30 年期', color: '#8656c7' },
 };
-const SPREAD_COLOR = '#f472b6';
+const SPREAD_COLOR = '#ba4d88';
 
 export default {
   name: 'treasury-panel',
@@ -26,7 +26,7 @@ export default {
   <section class="panel" v-show="isActive">
     <div class="panel-head">
       <div>
-        <h2>美债收益率看板</h2>
+        <p class="eyebrow">MARKET OVERVIEW</p><h2>美债收益率看板</h2>
         <p class="panel-sub">美国 2 / 10 / 30 年期国债收益率 · 数据来源 FRED（圣路易斯联储）</p>
       </div>
       <div class="panel-actions">
@@ -46,18 +46,22 @@ export default {
     <div class="chart-card">
       <div class="chart-head">
         <div>
-          <h3>收益率走势（2020 年至今）</h3>
-          <p class="chart-tip">滚轮缩放时间跨度 · 按住拖拽平移 · 右上角按钮还原视图 · 悬停查看每日数值</p>
+          <h3>收益率历史走势</h3>
+          <p class="chart-tip">比较不同期限的变化 · 悬停查看每日收益率</p>
+        </div>
+        <div class="range-tabs" role="group" aria-label="时间范围">
+          <button v-for="range in ranges" :key="range.value" type="button" :class="{selected: state.range === range.value}" :aria-pressed="state.range === range.value" @click="setRange(range.value)">{{ range.label }}</button>
         </div>
       </div>
+      <div class="chart-message" role="status" v-if="!state.data || state.data.no_data">{{ state.data && state.data.no_data ? '暂无缓存数据，请获取最新数据。' : state.dotCls === 'err' ? '数据加载失败，请重新获取数据。' : '正在加载收益率数据…' }}</div>
       <div ref="chartEl" class="chart" role="img" aria-label="美国 2/10/30 年期国债收益率曲线图"></div>
     </div>
 
     <footer class="panel-foot">
       <p>数据来源：<a href="https://fred.stlouisfed.org/" target="_blank" rel="noopener">FRED</a>
-        · <span class="swatch" style="--c:#fbbf24"></span>DGS2（2 年期）
-        · <span class="swatch" style="--c:#38bdf8"></span>DGS10（10 年期）
-        · <span class="swatch" style="--c:#a78bfa"></span>DGS30（30 年期）—— 美国国债恒定到期收益率（日频收盘值）</p>
+        · <span class="swatch" style="--c:#b57816"></span>DGS2（2 年期）
+        · <span class="swatch" style="--c:#3563e9"></span>DGS10（10 年期）
+        · <span class="swatch" style="--c:#8656c7"></span>DGS30（30 年期）—— 美国国债恒定到期收益率（日频收盘值）</p>
     </footer>
   </section>`,
   props: { active: { type: String, default: null } },
@@ -67,7 +71,7 @@ export default {
     const state = Vue.reactive({
       dotCls: '', updateText: '正在加载数据…',
       data: null, chart: null, loaded: false, refreshing: false,
-      statsHtml: '',
+      statsHtml: '', range: 'all',
     });
 
     function hexToRgba(hex, alpha) {
@@ -138,12 +142,12 @@ export default {
       const v10 = lastNonNull(d.series.DGS10.values);
       const spread = (v2 != null && v10 != null) ? v10 - v2 : null;
       const inverted = spread != null && spread < 0;
-      const spreadColor = spread != null ? (inverted ? '#f87171' : '#34d399') : SPREAD_COLOR;
+      const spreadColor = spread != null ? (inverted ? '#c13f4d' : '#147d61') : SPREAD_COLOR;
       cards.push('<div class="stat-card" style="--accent:' + SPREAD_COLOR + '">'
         + '<div class="stat-label">10Y − 2Y 期限利差</div>'
         + '<div class="stat-value" style="color:' + spreadColor + '">' + (spread == null ? '—' : spread.toFixed(2)) + '<span class="unit">%</span></div>'
         + '<span class="stat-badge ' + (inverted ? 'inverted' : 'normal') + '">'
-        + (inverted ? '⛔ 曲线倒挂' : '✅ 曲线正常') + '</span>'
+        + (inverted ? '曲线倒挂' : '曲线正常') + '</span>'
         + '<p class="stat-change" style="margin-top:6px"><span class="delta-label">'
         + (inverted ? '长期收益率低于短期，历史上多为衰退前兆' : '10 年期收益率高于 2 年期')
         + '</span></p></div>');
@@ -161,7 +165,7 @@ export default {
           lineStyle: { width: 2, color: meta.color },
           itemStyle: { color: meta.color },
           areaStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: hexToRgba(meta.color, 0.16) },
+            { offset: 0, color: hexToRgba(meta.color, 0.045) },
             { offset: 1, color: hexToRgba(meta.color, 0) },
           ]) },
           emphasis: { focus: 'series', lineStyle: { width: 3 } },
@@ -172,45 +176,60 @@ export default {
         animationDuration: 450,
         tooltip: {
           trigger: 'axis',
-          backgroundColor: 'rgba(10, 16, 30, 0.94)', borderColor: 'rgba(255, 255, 255, 0.12)',
-          borderWidth: 1, padding: [12, 16], textStyle: { color: '#dbe4f3', fontSize: 12.5 },
+          backgroundColor: '#ffffff', borderColor: '#e6eaf0',
+          borderWidth: 1, padding: [12, 16], textStyle: { color: '#18253b', fontSize: 12.5 },
           axisPointer: {
-            type: 'cross', crossStyle: { color: 'rgba(255, 255, 255, 0.25)' },
-            label: { backgroundColor: '#1e293b', color: '#e2e8f0' },
+            type: 'cross', crossStyle: { color: '#c9d3e0' },
+            label: { backgroundColor: '#edf2ff', color: '#284fc0' },
           },
           formatter(params) {
             const rows = params.map((p) => {
               const v = Array.isArray(p.value) ? p.value[1] : p.value;
               return '<div style="display:flex;align-items:center;gap:9px;margin-top:5px;line-height:1.5">'
                 + '<span style="width:10px;height:10px;border-radius:3px;background:' + p.color + ';flex:none"></span>'
-                + '<span style="color:#8ea0bd;width:56px">' + p.seriesName + '</span>'
+                + '<span style="color:#68778d;width:56px">' + p.seriesName + '</span>'
                 + '<span style="font-weight:600;font-variant-numeric:tabular-nums">' + (v == null ? '—' : Number(v).toFixed(2) + '%') + '</span></div>';
             }).join('');
             const ts = Array.isArray(params[0].value) ? params[0].value[0] : params[0].axisValue;
             return '<div style="font-weight:700;font-size:13px">' + (ts != null ? fmtDate(Number(ts)) : '—') + '</div>' + rows;
           },
         },
-        legend: { top: 0, right: 26, itemWidth: 16, itemHeight: 3, itemGap: 22, textStyle: { color: '#8ea0bd', fontSize: 12.5 } },
+        legend: { top: 0, left: 'center', itemWidth: 14, itemHeight: 3, itemGap: 16, textStyle: { color: '#68778d', fontSize: 12.5 } },
         grid: { left: 48, right: 22, top: 40, bottom: 60 },
         xAxis: {
           type: 'time', min: times[0], max: times[times.length - 1],
           maxInterval: 366 * 24 * 3600 * 1000,
-          axisLine: { lineStyle: { color: 'rgba(255, 255, 255, 0.12)' } },
+          axisLine: { lineStyle: { color: '#dce3ed' } },
           axisTick: { show: false }, axisLabel: { color: '#64748b', fontSize: 11.5, formatter: fmtDate },
         },
         yAxis: {
           type: 'value', scale: true, name: '收益率 (%)',
           nameTextStyle: { color: '#64748b', fontSize: 11.5, padding: [0, 0, 0, -8] },
-          axisLabel: { color: '#64748b', fontSize: 11.5 }, splitLine: { lineStyle: { color: 'rgba(148, 163, 184, 0.09)', type: 'dashed' } },
+          axisLabel: { color: '#64748b', fontSize: 11.5 }, splitLine: { lineStyle: { color: '#e8edf4', type: 'dashed' } },
         },
         dataZoom: [{ type: 'inside', xAxisIndex: 0, start: 0, end: 100, zoomOnMouseWheel: true, moveOnMouseMove: true, moveOnMouseWheel: false }],
         toolbox: {
           show: true, right: 0, top: 0, itemSize: 15,
-          feature: { restore: { show: true, title: '还原视图', iconStyle: { borderColor: '#8ea0bd' }, emphasis: { iconStyle: { borderColor: '#e6edf7' } } } },
+          feature: { restore: { show: true, title: '还原视图', iconStyle: { borderColor: '#68778d' }, emphasis: { iconStyle: { borderColor: '#3563e9' } } } },
         },
         series,
       };
     }
+
+    const ranges = [{label:'近一年',value:'1y'},{label:'近三年',value:'3y'},{label:'全部',value:'all'}];
+    function setRange(value) {
+      state.range = value;
+      if (!state.chart || !state.data || !state.data.dates.length) return;
+      const end = toTs(state.data.dates[state.data.dates.length - 1]);
+      const start = value === 'all' ? toTs(state.data.dates[0]) : end - (value === '1y' ? 365 : 1095) * 86400000;
+      state.chart.dispatchAction({type:'dataZoom', startValue:start, endValue:end});
+    }
+    let resizeObserver;
+    Vue.onMounted(() => {
+      resizeObserver = new ResizeObserver(() => { if (state.chart && isActive.value) state.chart.resize(); });
+      if (chartEl.value) resizeObserver.observe(chartEl.value);
+    });
+    Vue.onBeforeUnmount(() => { resizeObserver?.disconnect(); state.chart?.dispose(); });
 
     function bindChartClick() {
       const ch = state.chart;
@@ -248,6 +267,7 @@ export default {
       Vue.nextTick(() => {
         if (!state.chart) state.chart = echarts.init(chartEl.value);
         state.chart.setOption(buildOption(d), { notMerge: true });
+        setRange(state.range);
         bindChartClick();
       });
       state.updateText = '数据截至 ' + (d.last_date || '—') + ' · ' + d.rows + ' 个交易日 · 更新于 ' + fmtUpdatedAt(d.updated_at);
@@ -316,7 +336,7 @@ export default {
     Vue.onMounted(() => { if (isActive.value && !state.loaded) { state.loaded = true; loadTreasury(); } });
 
     return {
-      isActive, state, ICONS, refresh,
+      isActive, state, ICONS, refresh, ranges, setRange,
       // 模板中直接裸用这些状态名，必须在此暴露（toRef 保持响应式读写）：
       // 否则 updateText/dotCls/statsHtml 渲染为空、ref="chartEl" 拿不到 DOM，
       // echarts.init(null) 抛错导致走势图无法绘制。

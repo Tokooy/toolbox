@@ -21,11 +21,12 @@ export default {
   <section class="panel" v-show="isActive">
     <div class="panel-head">
       <div>
-        <h2>二维码批量生成</h2>
+        <p class="eyebrow">BATCH QR STUDIO</p><h2>二维码批量生成</h2>
         <p class="panel-sub">读取 Excel「二维码编号」列，批量生成二维码并输出 HTML / Excel</p>
       </div>
     </div>
 
+    <div class="qr-workflow" aria-label="生成流程"><span :class="{complete: file}"><b>01</b> 上传表格</span><i></i><span :class="{complete: running || hasResult}"><b>02</b> 批量生成</span><i></i><span :class="{complete: hasResult}"><b>03</b> 预览与下载</span></div>
     <!-- ① 上传 + ② 运行（紧凑布局，高度约为原来的 1/2） -->
     <div class="qr-top">
 
@@ -35,14 +36,14 @@ export default {
           <span>上传 Excel 文件</span>
         </div>
 
-        <div v-if="!file" class="dropzone dropzone-compact" tabindex="0"
+        <div v-if="!file" class="dropzone dropzone-compact" role="button" :tabindex="running || uploading ? -1 : 0" :aria-disabled="running || uploading" aria-label="选择或拖入 Excel 文件"
              :class="{ dragover: dragOver }" @click="pickFile" @keydown.enter.prevent="pickFile"
              @keydown.space.prevent="pickFile" @dragover.prevent="dragOver = true"
              @dragenter.prevent="dragOver = true" @dragleave.prevent="dragOver = false"
              @drop.prevent="onDrop">
           <span class="dz-icon" v-html="ICONS.upload"></span>
           <span class="dz-line">
-            <span class="dz-main">点击选择或拖拽 Excel</span>
+            <span class="dz-main">{{ uploading ? '正在上传，请稍候…' : '点击选择或拖拽 Excel' }}</span>
             <span class="dz-sub">支持 .xlsx / .xls · 第一列列名须为「二维码编号」</span>
           </span>
         </div>
@@ -53,7 +54,7 @@ export default {
             <div class="fi-name">{{ file.name }}</div>
             <div class="fi-meta">{{ fileMeta }}</div>
           </div>
-          <button class="fi-clear" type="button" title="移除文件" @click="clearFile">✕</button>
+          <button class="fi-clear" type="button" title="移除文件" aria-label="移除已选文件" :disabled="running || uploading" @click="clearFile">✕</button>
         </div>
         <input ref="fileInput" type="file" accept=".xlsx,.xls" hidden @change="onFileChange" />
       </div>
@@ -70,12 +71,12 @@ export default {
           </button>
           <div class="run-hint" :class="runHintCls" v-html="runHintHtml"></div>
         </div>
-        <p class="card-tip card-tip-tiny">每次运行自动清理旧输出（HTML / Excel / 二维码缓存）<br/>生成期间可切换其他功能，任务在后台继续。</p>
+        <p class="card-tip card-tip-tiny">生成后可预览二维码，并下载 HTML 与 Excel 文件。<br/>开始新任务会替换上次结果，请及时保存。</p>
       </div>
     </div>
 
     <!-- ③ 结果区：进度条 + 每 3 个一组翻页 -->
-    <div class="card qr-card-wide qr-result-card" v-if="hasResult || running">
+    <div class="card qr-card-wide qr-result-card" aria-label="生成结果">
       <div class="card-title">
         <span class="step-badge">3</span>
         <span>生成结果</span>
@@ -94,7 +95,7 @@ export default {
           <span class="prog-label">{{ progressText }}</span>
           <span class="prog-num">{{ running ? Math.min(99, Math.round(progress)) : 100 }}%</span>
         </div>
-        <div class="prog-track" role="progressbar" :aria-valuenow="running ? Math.round(progress) : 100">
+        <div class="prog-track" role="progressbar" aria-label="二维码生成进度" aria-valuemin="0" aria-valuemax="100" :aria-valuenow="running ? Math.round(progress) : 100">
           <div class="prog-bar" :class="{ running: running }"
                :style="{ width: (running ? Math.max(6, progress) : 100) + '%' }"></div>
         </div>
@@ -128,9 +129,10 @@ export default {
         第 {{ page + 1 }} / {{ totalPages }} 组 · 共 {{ result.count }} 个二维码
       </div>
       <div v-else-if="running" class="page-indicator">正在生成…</div>
-      <div v-else-if="showEmpty" class="empty-state">
-        <p class="empty-title">暂无生成结果</p>
-        <p class="empty-desc">请先上传 Excel 并点击「开始生成二维码」。</p>
+      <div v-else class="empty-state">
+        <span class="empty-icon" v-html="ICONS.qrcode || ICONS.file"></span>
+        <p class="empty-title">{{ showEmpty ? '此次任务没有生成二维码' : '你的二维码将在这里呈现' }}</p>
+        <p class="empty-desc">上传包含「二维码编号」列的 Excel 表格，开始生成后即可在此预览与下载。</p>
       </div>
     </div>
   </section>`,
@@ -139,7 +141,7 @@ export default {
     const isActive = Vue.computed(() => props.active === 'qrcode');
     const fileInput = Vue.ref(null);
     const state = Vue.reactive({
-      file: null, dragOver: false, pollTimer: null, taskId: null,
+      file: null, dragOver: false, uploading: false, pollTimer: null, taskId: null,
       running: false, runState: 'idle',   // idle | running | done | error
       progress: 0,                        // 生成任务进度 0-100
       progressText: '准备生成',
@@ -158,7 +160,7 @@ export default {
       const s = state.page * PER;
       return state.result.items.slice(s, s + PER);
     });
-    const canRun = Vue.computed(() => !!state.file && !state.running);
+    const canRun = Vue.computed(() => !!state.file && !state.running && !state.uploading && !store.taskBusy);
     const runHintHtml = Vue.computed(() => state.hintText);
     const runHintCls = Vue.computed(() => state.hintCls);
     const fileMeta = Vue.computed(() => {
@@ -167,7 +169,7 @@ export default {
     });
     const progressText = Vue.computed(() => state.progressText);
 
-    function pickFile() { if (!state.running) fileInput.value.click(); }
+    function pickFile() { if (!state.running && !state.uploading) fileInput.value.click(); }
     function onFileChange(e) {
       const f = e.target.files && e.target.files[0];
       e.target.value = '';
@@ -179,9 +181,10 @@ export default {
       if (f) uploadFile(f);
     }
     async function uploadFile(file) {
-      if (!file) return;
+      if (!file || state.running || state.uploading) return;
       if (!/\.(xlsx|xls)$/i.test(file.name)) { toast('仅支持 .xlsx / .xls 文件', 'err'); return; }
       if (store.taskBusy) { toast('有任务正在运行，请稍候再上传', 'err'); return; }
+      state.uploading = true;
       try {
         const buf = await file.arrayBuffer();
         const res = await fetch('/api/qrcode/upload?filename=' + encodeURIComponent(file.name), {
@@ -195,7 +198,7 @@ export default {
         toast('✓ Excel 已上传', 'ok');
       } catch (err) {
         toast('✕ ' + err.message, 'err');
-      }
+      } finally { state.uploading = false; }
     }
     function clearFile() {
       state.file = null;
@@ -224,7 +227,7 @@ export default {
 
     async function start() {
       if (!state.file) { toast('请先上传 Excel 文件', 'err'); return; }
-      if (state.running) return;
+      if (state.running || state.uploading) return;
       if (store.taskBusy) { toast('有任务正在运行，请稍候再试', 'err'); return; }
       store.taskBusy = true; store.taskName = '二维码生成';
       state.running = true; state.runState = 'running';
@@ -284,7 +287,7 @@ export default {
           const f = s.input_files[0];
           state.file = { name: f.name, size: f.size, modified: f.modified };
         } else if (!s.input_files || !s.input_files.length) {
-          if (!state.file && !state.running) { state.hintText = 'input/ 目录为空：请先上传 Excel 文件。'; state.hintCls = ''; }
+          if (!state.file && !state.running) { state.hintText = '先上传一份 Excel 表格，即可开始。'; state.hintCls = ''; }
         }
         if (s.has_result && !state.result) {
           const r = await api('/api/qrcode/result');
@@ -292,6 +295,8 @@ export default {
         }
       } catch (e) { /* 忽略 */ }
     }
+
+    Vue.onMounted(() => { if (isActive.value && !state.statusChecked) { state.statusChecked = true; refreshStatus(); } });
 
     Vue.watch(isActive, (on) => {
       if (on && !state.statusChecked) { state.statusChecked = true; refreshStatus(); }
@@ -304,6 +309,7 @@ export default {
       // 否则上传后 file 不显示、running 恒为假 → 进度条与结果区永不出现、
       // result 为 undefined → 下载按钮 / 每 3 个一组扫码全部失效。
       file: Vue.toRef(state, 'file'),
+      uploading: Vue.toRef(state, 'uploading'),
       dragOver: Vue.toRef(state, 'dragOver'),
       running: Vue.toRef(state, 'running'),
       result: Vue.toRef(state, 'result'),

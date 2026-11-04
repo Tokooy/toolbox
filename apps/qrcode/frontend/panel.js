@@ -8,11 +8,11 @@ import { api, sleep } from '/static/sdk/api.js';
 import { store, toast, openModal, setModalBody, keepModalOpen } from '/static/sdk/ui.js';
 import { ICONS } from '/static/sdk/icons.js';
 
-const PER_PAGE = 3;   // 每组 3 个二维码
+const PER_PAGE = 4;   // 每组 4 个二维码
 
 /* ============================================================
    二维码批量生成面板
-   上传/生成（紧凑）→ 任务进度条 → 结果「每 3 个一组」翻页扫码
+   上传/生成（紧凑）→ 任务进度条 → 结果「每 4 个一组」翻页扫码
    ============================================================ */
 
 export default {
@@ -75,7 +75,7 @@ export default {
       </div>
     </div>
 
-    <!-- ③ 结果区：进度条 + 每 3 个一组翻页 -->
+    <!-- ③ 结果区：进度条 + 每 4 个一组翻页 -->
     <div class="card qr-card-wide qr-result-card" aria-label="生成结果">
       <div class="card-title">
         <span class="step-badge">3</span>
@@ -105,7 +105,7 @@ export default {
         HTML 输出 <b>{{ result.html_name }}</b> · Excel 输出 <b>{{ result.xlsx_name }}</b>
       </div>
 
-      <!-- 每 3 个一组 + 左右翻页按钮 -->
+      <!-- 每 4 个一组 + 左右翻页按钮 -->
       <div v-if="hasResult" class="stage">
         <button class="pager-btn" type="button" title="上一组" :disabled="page <= 0" @click="pagePrev">
           <span v-html="ICONS.left"></span>
@@ -307,7 +307,7 @@ export default {
       canRun, runHintHtml, runHintCls, fileMeta, progressText,
       // 模板中直接裸用这些状态名，必须在此暴露（toRef 保持响应式读写）：
       // 否则上传后 file 不显示、running 恒为假 → 进度条与结果区永不出现、
-      // result 为 undefined → 下载按钮 / 每 3 个一组扫码全部失效。
+      // result 为 undefined → 下载按钮 / 每 4 个一组扫码全部失效。
       file: Vue.toRef(state, 'file'),
       uploading: Vue.toRef(state, 'uploading'),
       dragOver: Vue.toRef(state, 'dragOver'),

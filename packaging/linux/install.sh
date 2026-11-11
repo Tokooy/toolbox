@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ============================================================
 #  Toolbox 工具台 · 一键安装（Linux / macOS）
-#   ① 创建 conda 环境 self_ag 并安装依赖（二维码生成所需）
+#   ① 准备 Python 环境并构建 Agora 前端
 #   ② 安装桌面快捷方式与应用菜单项（双击即可启动）
 #
 #  用法：bash packaging/linux/install.sh
@@ -24,7 +24,7 @@ echo ""
 if ! command -v conda >/dev/null 2>&1; then
   echo "  ✗ 未找到 conda，请先安装 Miniconda/Anaconda："
   echo "    https://docs.conda.io/en/latest/miniconda.html"
-  echo "  （若只想跑美债看板 / 工具台本体，直接用系统 python 运行也可以——它们零第三方依赖）"
+  echo "  也可以按 README 使用系统 Python 和 Node.js 启动。"
   exit 1
 fi
 
@@ -35,14 +35,15 @@ if [ -x "$ENV_PY" ]; then
   echo "  ✓ conda 环境「$ENV_NAME」已存在，跳过创建"
 else
   echo "  ▶ 创建 conda 环境「$ENV_NAME」(python 3.11) …"
-  conda create -y -n "$ENV_NAME" python=3.11
-  echo "  ▶ 安装依赖 qrcode / Pillow / openpyxl …"
-  conda run -n "$ENV_NAME" pip install -q "qrcode[pil]" pillow openpyxl
+  conda create -y -n "$ENV_NAME" python=3.11 pip
   echo "  ✓ 环境创建完成"
 fi
 
-"$ENV_PY" -c "import qrcode, PIL, openpyxl" 2>/dev/null \
-  || { echo "  ✗ 依赖检查失败，请重新运行 install.sh"; exit 1; }
+cd "$REPO_ROOT"
+conda run -n "$ENV_NAME" python -m pip install -r requirements.txt
+conda install -y -n "$ENV_NAME" -c conda-forge 'nodejs=22'
+conda run -n "$ENV_NAME" npm --prefix apps/agora/web ci --no-audit --no-fund
+conda run -n "$ENV_NAME" npm --prefix apps/agora/web run build
 
 # ---------- ② 桌面快捷方式 ----------
 chmod +x "$LAUNCHER"
@@ -54,7 +55,7 @@ Type=Application
 Version=1.0
 Name=Toolbox 工具台
 Name[zh_CN]=Toolbox 工具台
-Comment=多功能本地工具集 · 美债收益率 / 二维码生成
+Comment=多功能本地工具集 · 美债收益率 / 二维码生成 / 共识 Agora
 Exec=$LAUNCHER
 Icon=$HERE/icon.svg
 Terminal=true

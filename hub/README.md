@@ -49,6 +49,7 @@ TOOLBOX_NO_BROWSER=1 python hub/server.py   # do not open a browser (servers / C
 | `/api/apps` | app manifest (drives the sidebar buttons) |
 | `/api/health` | health check (launcher scripts use it to detect a running instance) |
 | `/api/<id>/**` | that tool's backend API |
+| `/apps/<id>/workspace/**` | ASGI workspace and API |
 
 Every response carries `Cache-Control: no-store`, so frontend assets always match the code on disk.
 

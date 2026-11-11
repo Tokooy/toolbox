@@ -15,7 +15,7 @@ packaging/
 │   ├── toolbox.spec        PyInstaller 单文件配置（产物 dist/Toolbox.exe）
 │   └── build_windows.bat   一键构建（自动装依赖 + 打包）
 ├── docker/
-│   └── Dockerfile          运行镜像（python:3.12-slim + 二维码依赖 + 种子数据）
+│   └── Dockerfile          运行镜像（构建 Agora 前端，打包工具依赖和种子数据）
 └── linux/
     ├── install.sh          一键安装：conda 环境 self_ag + 桌面图标 + 应用菜单
     ├── 启动.sh              一键启动（桌面图标指向它）
@@ -31,7 +31,8 @@ packaging/
 ```
 <数据根>/
 ├── qrcode/{input,output,qrcodes}/     二维码的输入、输出与图片缓存
-└── treasury/{raw,treasury_yields.csv,meta.json}   美债缓存与 FRED 原始存档
+├── treasury/{raw,treasury_yields.csv,meta.json}   美债缓存与 FRED 原始存档
+└── agora/                           研讨历史、文档和 Agent 设置
 ```
 
 数据根按优先级确定（见 `core/paths.py`）：
@@ -45,10 +46,11 @@ packaging/
 
 ## Windows：单文件 exe
 
+构建需要 Python 3.11+ 和 Node.js 22。
+
 ```bat
 :: 在仓库根目录双击，或命令行执行
 packaging\windows\build_windows.bat
-:: 等价于：pyinstaller --clean --noconfirm packaging\windows\toolbox.spec
 ```
 
 产物 `dist\Toolbox.exe`：拷到任意 Windows 10/11 机器双击即可运行（自带 Python 运行时）。
@@ -64,7 +66,7 @@ packaging\windows\build_windows.bat
 docker build -f packaging/docker/Dockerfile -t toolbox .
 
 # 运行（数据卷持久化；首次创建时会把镜像里的种子数据灌进卷）
-docker run -d --name toolbox -p 8080:8080 -v toolbox_data:/app/data toolbox
+docker run -d --name toolbox -p 127.0.0.1:8080:8080 -v toolbox_data:/app/data toolbox
 
 # 日常
 docker logs -f toolbox
@@ -72,7 +74,7 @@ docker restart toolbox
 docker rm -f toolbox          # 数据卷保留，重新 run 即恢复
 ```
 
-访问 `http://<主机IP>:8080`。容器内没有浏览器，“自动打开浏览器”会被忽略。
+访问 `http://127.0.0.1:8080`。容器内没有浏览器，“自动打开浏览器”会被忽略。
 
 ## Linux / macOS：桌面快捷方式
 
@@ -82,8 +84,7 @@ bash packaging/linux/启动.sh         # 启动（桌面图标也是调用它）
 PORT=8081 bash packaging/linux/启动.sh
 ```
 
-没有 conda 也能跑：`启动.sh` 会退回系统 `python3`（只有二维码生成需要 `qrcode/pillow/openpyxl`，
-工具台本体与美债看板是纯标准库）。
+没有 conda 时，先按根目录 README 安装依赖并构建 Agora，再用系统 Python 运行 `启动.sh`。
 
 ## 各工具单独部署
 

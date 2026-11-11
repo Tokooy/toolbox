@@ -3,18 +3,19 @@
 > English version: [README.md](README.md) · 架构详解：[ARCHITECTURE.md](ARCHITECTURE.md)
 
 **Toolbox** 把若干个小工具装进**同一个本地网页**：左侧点按钮切换功能，不跳转页面、不用记命令行。
-所有工具共用一套外壳与后端内核，每个工具也可以**脱离工具台单独运行**。
+Agora 在工具台内保留原有研讨界面。
 
 | 工具 | 说明 | 代码位置 |
 | --- | --- | --- |
 | 📈 美债收益率 | 2 / 10 / 30 年期美国国债收益率曲线（FRED 权威数据），按需联网增量更新 | [`apps/treasury/`](apps/treasury/README.md) |
 | ▦ 二维码批量生成 | 读取 Excel「二维码编号」列，批量生成二维码并输出 HTML / Excel | [`apps/qrcode/`](apps/qrcode/README.md) |
+| 💬 共识 Agora | 多 Agent 文档研讨、实时对话与 Markdown 报告 | [`apps/agora/`](apps/agora/README.md) |
 
 ## 一、快速开始
 
 ### Windows：单文件 exe（推荐给没装 Python 的机器）
 
-1. 构建（在仓库根目录双击，或命令行执行）：
+1. 安装 Python 3.11+ 和 Node.js 22 后，运行构建脚本：
    ```bat
    packaging\windows\build_windows.bat
    ```
@@ -24,11 +25,12 @@
 > ⚠️ 改了代码必须**重新打包**才会在 exe 里生效：前端、后端与依赖都被烘进了 exe。
 > 源码运行与 Docker 不受影响，读的永远是最新代码。
 
-### 源码运行（任意平台，开发首选）
+### 源码运行（Python 3.11+ 与 Node.js 22）
 
 ```bash
-# 只有二维码生成需要第三方库；工具台本体与美债看板是纯标准库
-python -m pip install "qrcode[pil]" pillow openpyxl
+python -m pip install -r requirements.txt
+npm --prefix apps/agora/web ci
+npm --prefix apps/agora/web run build
 
 python hub/server.py          # 打开 http://127.0.0.1:8080
 PORT=8081 python hub/server.py   # 换端口
@@ -38,8 +40,8 @@ PORT=8081 python hub/server.py   # 换端口
 
 ```bash
 docker build -f packaging/docker/Dockerfile -t toolbox .
-docker run -d --name toolbox -p 8080:8080 -v toolbox_data:/app/data toolbox
-# 访问 http://<主机IP>:8080
+docker run -d --name toolbox -p 127.0.0.1:8080:8080 -v toolbox_data:/app/data toolbox
+# 访问 http://127.0.0.1:8080
 ```
 
 ### Linux / macOS 桌面快捷方式
@@ -51,9 +53,9 @@ bash packaging/linux/启动.sh       # 启动（双击桌面图标等价）
 
 > 三种方式的完整说明（含迁移、备份、数据卷）见 [packaging/README.md](packaging/README.md)。
 
-## 二、每个工具都能单独运行
+## 二、独立运行入口
 
-不想用工具台时，直接跑单个工具即可（接口与前端面板和工具台内**完全一致**）：
+美债和二维码工具保留独立启动命令。Agora 的独立版本见 [Tokooy/agora](https://github.com/Tokooy/agora)。
 
 ```bash
 python apps/treasury/standalone.py   # 只有美债看板       → http://127.0.0.1:5000
@@ -68,7 +70,8 @@ python apps/qrcode/cli.py            # 不开网页，命令行批量生成二�
 ```
 data/
 ├── treasury/   美债缓存 + FRED 原始 CSV 存档（随仓库提交，离线开箱即用）
-└── qrcode/     二维码 input（上传的 Excel）/ output（生成结果）/ qrcodes（PNG 缓存）
+├── qrcode/     二维码 input（上传的 Excel）/ output（生成结果）/ qrcodes（PNG 缓存）
+└── agora/      文档提取正文、研讨历史、角色与 API Key 设置
 ```
 
 数据根按优先级确定：`TOOLBOX_DATA_ROOT` 环境变量 ▸ exe 所在目录（打包运行）▸ 仓库根目录。
@@ -81,7 +84,8 @@ toolbox/
 ├── core/          公共内核：路径解析 / HTTP 框架 / 任务与互斥 / 应用注册表（零业务逻辑）
 ├── apps/          业务：一个工具 = 一个目录 = 后端 + 前端（+ 可选独立运行入口）
 │   ├── treasury/    美债收益率看板
-│   └── qrcode/      二维码批量生成
+│   ├── qrcode/      二维码批量生成
+│   └── agora/       多 Agent 文档研讨
 ├── hub/           工具台外壳：扫描 apps/ 装配路由、托管单页应用（不含业务逻辑）
 ├── data/          运行时数据（见上）
 ├── packaging/     交付：Windows exe / Docker / Linux 桌面安装
@@ -95,8 +99,7 @@ toolbox/
 python tests/smoke_test.py
 ```
 
-零第三方依赖（除二维码生成需要 `openpyxl`），在临时数据目录里跑通
-「外壳 + 两个工具 + 各自独立运行」的全部核心链路，退出码 0 表示通过，可直接接 CI。
+先完成源码运行的安装和构建步骤。测试使用临时数据目录验证外壳、三个工具，以及美债和二维码的独立入口。
 
 ## 六、常见问题
 
@@ -121,10 +124,8 @@ A：PyInstaller 单文件 exe 偶尔会被误报，可在 [VirusTotal](https://w
 
 ## 七、技术栈与设计取向
 
-- **后端**：纯 Python 标准库（`http.server` / `urllib` / `csv`），零第三方依赖；
-  公共能力集中在 `core/`，业务在各 `apps/<工具>/backend/`，工具台外壳只做装配；
-- **前端**：Vue 3 + ECharts 5，**本地托管、无 CDN、无构建步骤**；
-  外壳（`hub/static`）负责导航与通知，各工具的面板（`apps/<工具>/frontend/panel.js`）按需加载；
-- **任务互斥**：所有重任务共用一把全局锁，同一时刻只运行一个，避免抢网络 / 磁盘；
+- **后端**使用 Uvicorn 同时运行 Toolbox 路由与 Agora 的 FastAPI 工作台。业务代码位于各工具的 `backend/`。
+- **前端**使用本地托管的 Vue 3 和 ECharts。Agora 的 React 前端由 Vite 构建，点击侧栏后按需加载。
+- **任务互斥**由 Toolbox 原有工具和 Agora 各自管理。
 - **可扩展**：新增工具 = 新增一个 `apps/<id>/` 目录（清单 + 后端 + 前端），
   不需要改 `hub` 里的任何文件 —— 详见 [ARCHITECTURE.md](ARCHITECTURE.md#五新增一个工具)。

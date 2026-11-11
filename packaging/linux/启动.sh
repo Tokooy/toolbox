@@ -12,8 +12,7 @@ ENV_NAME="self_ag"
 
 cd "$REPO_ROOT"
 
-# 1) 定位 conda（找不到就用系统 python；工具台与美债看板零第三方依赖，
-#    只有二维码生成需要 qrcode/Pillow/openpyxl）
+# 1) 定位 conda（找不到就使用已按 README 安装依赖的系统 Python）
 if command -v conda >/dev/null 2>&1; then
   CONDA_BASE="$(conda info --base 2>/dev/null)"
 elif [ -d "$HOME/anaconda3" ]; then
@@ -34,7 +33,7 @@ fi
 if [ -z "$ENV_PY" ]; then
   echo ""
   echo "  ✗ 既没有 conda 环境「$ENV_NAME」，也没找到 python3。"
-  echo "    请先安装 Python 3.9+，或运行一次安装脚本创建环境："
+  echo "    请先安装 Python 3.11+，或运行一次安装脚本创建环境："
   echo "      bash \"$HERE/install.sh\""
   echo ""
   read -r -p "  按回车键退出..." _

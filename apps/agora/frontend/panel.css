@@ -1,0 +1,8 @@
+.agora-workspace {
+  display: block;
+  width: 100%;
+  height: max(480px, calc(100dvh - 175px));
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: white;
+}

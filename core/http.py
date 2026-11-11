@@ -136,12 +136,13 @@ class StaticMount:
 class Request:
     """一次请求：读参数/请求体 + 写响应。处理函数只依赖这个对象。"""
 
-    def __init__(self, handler: BaseHTTPRequestHandler, params: dict):
-        self._h = handler
+    def __init__(self, method: str, target: str, params: dict, read_body, respond):
         self.params = params
-        self.method = handler.command
+        self.method = method
+        self._read_body = read_body
+        self._respond = respond
         self.responded = False          # 已发出响应则不再补发 500，避免写坏 HTTP 流
-        parsed = urlparse(handler.path)
+        parsed = urlparse(target)
         self.path = parsed.path
         self.query = parse_qs(parsed.query)
 
@@ -152,8 +153,7 @@ class Request:
         return values[0] if values else default
 
     def body(self) -> bytes:
-        length = int(self._h.headers.get('Content-Length') or 0)
-        return self._h.rfile.read(length) if length > 0 else b''
+        return self._read_body()
 
     def json_body(self) -> dict:
         raw = self.body()
@@ -173,22 +173,16 @@ class Request:
 
     def send_bytes(self, body: bytes, content_type: str, status: int = 200,
                    filename: str | None = None, extra_headers: dict | None = None):
-        handler = self._h
-        self.responded = True
-        handler.send_response(status)
-        handler.send_header('Content-Type', content_type)
-        handler.send_header('Content-Length', str(len(body)))
-        handler.send_header('Cache-Control', 'no-store')
+        headers = {
+            'Content-Type': content_type,
+            'Content-Length': str(len(body)),
+            'Cache-Control': 'no-store',
+        }
         if filename:
-            handler.send_header('Content-Disposition',
-                                "attachment; filename*=UTF-8''" + quote(filename))
-        for key, value in (extra_headers or {}).items():
-            handler.send_header(key, value)
-        handler.end_headers()
-        try:
-            handler.wfile.write(body)
-        except (BrokenPipeError, ConnectionResetError):
-            pass                             # 客户端已断开，忽略
+            headers['Content-Disposition'] = "attachment; filename*=UTF-8''" + quote(filename)
+        headers.update(extra_headers or {})
+        self.responded = True
+        self._respond(status, headers, body)
 
     def send_file(self, path, content_type: str | None = None, filename: str | None = None):
         path = Path(path)
@@ -199,12 +193,8 @@ class Request:
                         filename=filename)
 
     def redirect(self, location: str, status: int = 302):
-        handler = self._h
         self.responded = True
-        handler.send_response(status)
-        handler.send_header('Location', location)
-        handler.send_header('Content-Length', '0')
-        handler.end_headers()
+        self._respond(status, {'Location': location, 'Content-Length': '0'}, b'')
 
 
 def make_handler(router: Router, mounts=(), server_version: str = 'Toolbox/1.0'):
@@ -217,12 +207,30 @@ def make_handler(router: Router, mounts=(), server_version: str = 'Toolbox/1.0')
         def log_message(self, fmt, *args):        # noqa: A003 - 覆盖标准库同名钩子
             sys.stderr.write('[%s] %s\n' % (self.log_date_time_string(), fmt % args))
 
+        def _request(self, params):
+            def read_body():
+                length = int(self.headers.get('Content-Length') or 0)
+                return self.rfile.read(length) if length > 0 else b''
+
+            def respond(status, headers, body):
+                self.send_response(status)
+                for key, value in headers.items():
+                    self.send_header(key, value)
+                self.end_headers()
+                if self.command != 'HEAD':
+                    try:
+                        self.wfile.write(body)
+                    except (BrokenPipeError, ConnectionResetError):
+                        pass
+
+            return Request(self.command, self.path, params, read_body, respond)
+
         def _dispatch(self):
             path = urlparse(self.path).path
             hit = router.resolve(self.command, path)
             if hit is not None:
                 handler, params = hit
-                request = Request(self, params)
+                request = self._request(params)
                 try:
                     handler(request)
                 except (BrokenPipeError, ConnectionResetError):
@@ -238,9 +246,9 @@ def make_handler(router: Router, mounts=(), server_version: str = 'Toolbox/1.0')
             for mount in mounts:
                 target = mount.resolve(path)
                 if target is not None:
-                    Request(self, {}).send_file(target)
+                    self._request({}).send_file(target)
                     return
-            Request(self, {}).send_error(404, 'Not Found')
+            self._request({}).send_error(404, 'Not Found')
 
         def do_GET(self):                          # noqa: N802 - 标准库要求的命名
             self._dispatch()

@@ -3,19 +3,19 @@
 > 中文版说明见 [README_zh.md](README_zh.md) · Architecture: [ARCHITECTURE.md](ARCHITECTURE.md)
 
 **Toolbox** puts several small tools into **one local web app**: click a button in the sidebar to switch
-tools — no page reloads, no command lines to remember. All tools share one shell and one backend kernel,
-and **each tool can also run completely on its own**.
+tools without reloading the workbench. Agora keeps its own discussion interface inside the workbench.
 
 | Tool | Description | Code |
 | --- | --- | --- |
 | 📈 US Treasury Yields | 2 / 10 / 30-year U.S. Treasury yield curves (authoritative FRED data), on-demand incremental refresh | [`apps/treasury/`](apps/treasury/README_en.md) |
 | ▦ Bulk QR-Code Generator | Reads the `二维码编号` column from Excel and batch-generates QR codes → HTML / Excel | [`apps/qrcode/`](apps/qrcode/README.md) |
+| 💬 Agora | Multi-agent document discussion, live dialogue, and Markdown reports | [`apps/agora/`](apps/agora/README.md) |
 
 ## 1. Quick start
 
 ### Windows: single-file exe (no Python needed)
 
-1. Build (double-click in the repo root, or run from a terminal):
+1. With Python 3.11+ and Node.js 22 installed, run the build script:
    ```bat
    packaging\windows\build_windows.bat
    ```
@@ -25,11 +25,12 @@ and **each tool can also run completely on its own**.
 > ⚠️ After changing code you **must rebuild** for the exe to pick it up — the frontend, backend and
 > dependencies are baked into it at build time. Running from source and Docker always read the latest code.
 
-### From source (any platform, best for development)
+### From source (Python 3.11+ and Node.js 22)
 
 ```bash
-# Only the QR generator needs third-party packages; the workbench and the treasury tool are stdlib-only
-python -m pip install "qrcode[pil]" pillow openpyxl
+python -m pip install -r requirements.txt
+npm --prefix apps/agora/web ci
+npm --prefix apps/agora/web run build
 
 python hub/server.py             # opens http://127.0.0.1:8080
 PORT=8081 python hub/server.py   # another port
@@ -39,8 +40,8 @@ PORT=8081 python hub/server.py   # another port
 
 ```bash
 docker build -f packaging/docker/Dockerfile -t toolbox .
-docker run -d --name toolbox -p 8080:8080 -v toolbox_data:/app/data toolbox
-# visit http://<host-ip>:8080
+docker run -d --name toolbox -p 127.0.0.1:8080:8080 -v toolbox_data:/app/data toolbox
+# visit http://127.0.0.1:8080
 ```
 
 ### Linux / macOS desktop shortcut
@@ -54,7 +55,7 @@ bash packaging/linux/启动.sh       # launch (same as double-clicking the icon)
 
 ## 2. Running a single tool
 
-You do not need the workbench to use one tool — its API and frontend panel are **identical** either way:
+Treasury and QR codes have their own launchers. For the original standalone Agora, see [Tokooy/agora](https://github.com/Tokooy/agora).
 
 ```bash
 python apps/treasury/standalone.py   # treasury dashboard only → http://127.0.0.1:5000
@@ -69,7 +70,8 @@ Code is read-only, data is writable, and they are kept apart (essential for the 
 ```
 data/
 ├── treasury/   cached yields + raw FRED CSV archive (committed, works offline out of the box)
-└── qrcode/     input (uploaded Excel) / output (generated files) / qrcodes (PNG cache)
+├── qrcode/     input (uploaded Excel) / output (generated files) / qrcodes (PNG cache)
+└── agora/      extracted documents, discussion history, roles, and API key settings
 ```
 
 The data root is resolved as: `TOOLBOX_DATA_ROOT` env var ▸ the folder holding the exe (packaged runs)
@@ -82,7 +84,8 @@ toolbox/
 ├── core/          shared kernel: path resolution / HTTP framework / tasks & locking / app registry
 ├── apps/          business code: one tool = one folder = backend + frontend (+ optional entry points)
 │   ├── treasury/    US Treasury yield dashboard
-│   └── qrcode/      bulk QR-code generator
+│   ├── qrcode/      bulk QR-code generator
+│   └── agora/       document discussion workbench
 ├── hub/           workbench shell: discovers apps/, mounts their APIs and serves the SPA
 ├── data/          runtime data (see above)
 ├── packaging/     delivery: Windows exe / Docker / Linux desktop install
@@ -96,9 +99,7 @@ toolbox/
 python tests/smoke_test.py
 ```
 
-Zero third-party dependencies (except `openpyxl` for QR generation). It boots a real server against a
-temporary data directory and exercises the shell, both tools and their standalone modes; exit code 0
-means everything passed — safe to wire into CI.
+Run the source setup above before testing. The smoke test uses temporary data to verify the shell, all three tools, and the standalone Treasury and QR launchers.
 
 ## 6. FAQ
 

@@ -4,7 +4,7 @@ rem ============================================================
 rem  Toolbox 工具台 · Windows 一键构建脚本
 rem  生成单文件 Toolbox.exe（PyInstaller onefile，自带运行环境）
 rem
-rem  前提：本机已安装 Python 3.8+（推荐 conda/miniconda 环境）
+rem  前提：本机已安装 Python 3.11+ 和 Node.js 22
 rem  用法：双击本脚本，或在仓库根目录执行  packaging\windows\build_windows.bat
 rem  产物：dist\Toolbox.exe
 rem ============================================================
@@ -18,17 +18,22 @@ echo   Toolbox 工具台 · Windows 构建向导
 echo  ════════════════════════════════════════════════════════
 
 echo.
-echo  [1/3] 检查并安装构建依赖（pyinstaller / qrcode / pillow / openpyxl）...
-python -m pip install --upgrade pyinstaller "qrcode[pil]" pillow openpyxl
+echo  [1/3] 安装 Python 依赖...
+python -m pip install --upgrade pyinstaller -r requirements.txt
 if errorlevel 1 goto :err
 
 echo.
-echo  [2/3] 使用 packaging\windows\toolbox.spec 打包单文件 exe（onefile）...
-pyinstaller --clean --noconfirm packaging\windows\toolbox.spec
+echo  [2/3] 构建 Agora 前端...
+call npm --prefix apps/agora/web ci --no-audit --no-fund
+if errorlevel 1 goto :err
+call npm --prefix apps/agora/web run build
+if errorlevel 1 goto :err
+
+echo  [3/3] 使用 packaging\windows\toolbox.spec 打包单文件 exe...
+python -m PyInstaller --clean --noconfirm packaging\windows\toolbox.spec
 if errorlevel 1 goto :err
 
 echo.
-echo  [3/3] 完成！
 echo.
 echo  ════════════════════════════════════════════════════════
 echo   ✓ exe 已生成：dist\Toolbox.exe
@@ -39,6 +44,7 @@ echo     · 数据目录会自动建立在 exe 同目录：
 echo         - data\qrcode\input     放待处理的 Excel
 echo         - data\qrcode\output    生成的 HTML / Excel
 echo         - data\treasury         美债数据缓存
+echo         - data\agora            研讨历史和 Agent 设置
 echo     · 若把 exe 放在本仓库根目录旁，将直接复用仓库内现有数据目录
 echo     · 停止服务：在 exe 控制台窗口按 Ctrl+C
 echo  ════════════════════════════════════════════════════════

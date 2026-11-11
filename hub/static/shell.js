@@ -95,7 +95,7 @@ const AppRoot = {
           <button v-for="app in store.apps" :key="app.id" type="button"
                   class="feature-btn" :class="{ active: store.active === app.id }" :aria-current="store.active === app.id ? 'page' : null" @click="activate(app.id)">
             <span class="fb-icon" v-html="iconOf(app)"></span>
-            <span class="fb-copy"><span class="fb-name">{{ app.name }}</span><span class="fb-description">{{ app.id === 'treasury' ? '市场数据与趋势' : app.id === 'qrcode' ? '高效批量生成' : '打开工具' }}</span></span>
+            <span class="fb-copy"><span class="fb-name">{{ app.name }}</span><span class="fb-description">{{ app.id === 'treasury' ? '市场数据与趋势' : app.id === 'qrcode' ? '高效批量生成' : app.desc }}</span></span>
           </button>
         </div>
         <div class="sidebar-icons">

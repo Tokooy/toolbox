@@ -1,0 +1,13 @@
+{
+  "id": "agora",
+  "name": "共识 Agora",
+  "desc": "多 Agent 文档研讨",
+  "icon": "message",
+  "order": 30,
+  "backend": "backend.app",
+  "asgi": true,
+  "frontend": {
+    "entry": "panel.js",
+    "style": "panel.css"
+  }
+}

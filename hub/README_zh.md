@@ -48,8 +48,9 @@ TOOLBOX_NO_BROWSER=1 python hub/server.py   # 不自动打开浏览器（服务�
 | `/api/apps` | 应用清单（外壳据此生成左侧按钮） |
 | `/api/health` | 健康检查（启动脚本用它判断服务是否已在运行） |
 | `/api/<id>/**` | 该工具的后端接口 |
+| `/apps/<id>/workspace/**` | ASGI 工作台及其 API |
 
-所有响应都带 `Cache-Control: no-store`，前端资源随代码更新即时生效，不会出现「改了代码页面还是旧的」。
+Toolbox 路由响应带 `Cache-Control: no-store`，前端资源随代码更新即时生效，不会出现「改了代码页面还是旧的」。
 
 ## 新增一个工具
 

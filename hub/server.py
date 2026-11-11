@@ -5,7 +5,7 @@
 
 `hub` 是工具台的**宿主外壳**：它自己不含任何业务逻辑，只做三件事：
 
-1. 扫描 ``apps/*/app.json`` 发现所有工具，把它们的后端挂到 ``/api/<工具 id>/``；
+1. 扫描 ``apps/*/app.json``，装配工具的 API 或 ASGI 工作台；
 2. 托管外壳前端（``hub/static/``，单页应用）与各工具的前端资源（``apps/<id>/frontend/``）；
 3. 启动 HTTP 服务、打印地址、按需打开浏览器。
 
@@ -19,7 +19,11 @@
 
 import json
 import os
+import socket
 import sys
+import threading
+import webbrowser
+from contextlib import AsyncExitStack, asynccontextmanager
 from datetime import datetime
 from pathlib import Path
 
@@ -36,11 +40,14 @@ if str(_CODE_ROOT) not in sys.path:
     sys.path.insert(0, str(_CODE_ROOT))
 
 from core import http, paths, registry                    # noqa: E402
+from hub.asgi import ToolboxRoutes                        # noqa: E402
+from starlette.applications import Starlette              # noqa: E402
+from starlette.routing import Mount                       # noqa: E402
+import uvicorn                                            # noqa: E402
 
 PORT = int(os.environ.get('PORT', '8080'))
 # 监听地址：默认仅本机回环；Docker 部署时设 HOST=0.0.0.0 以便端口映射到外部
 HOST = os.environ.get('HOST', '127.0.0.1')
-SERVER_VERSION = 'ToolboxHub/2.0'
 
 
 def load_config() -> dict:
@@ -87,35 +94,67 @@ def check_frontends(apps) -> list[str]:
     return missing
 
 
-def main():
+def create_app(apps=None, *, startup=True, browser_url=None):
     paths.bootstrap()
-    config = load_config()
-    apps = registry.discover()
-
-    router = build_router(apps, config)
+    if apps is None:
+        apps = registry.discover()
+    router = build_router(apps, load_config())
     router.get('/', lambda req: req.send_file(paths.STATIC_DIR / 'index.html'))
 
+    workspaces = [
+        (app.id, registry.load_backend(app).app) for app in apps if app.asgi
+    ]
+    routes = []
+    for app_id, workspace in workspaces:
+        prefix = '/apps/%s/workspace' % app_id
+        routes.append(Mount(prefix, app=workspace))
+        router.get(prefix, lambda req, location=prefix + '/': req.redirect(location))
+    routes.append(Mount('/', app=ToolboxRoutes(router, static_mounts(apps))))
+
+    @asynccontextmanager
+    async def lifespan(app):
+        async with AsyncExitStack() as stack:
+            for _, workspace in workspaces:
+                await stack.enter_async_context(workspace.router.lifespan_context(workspace))
+            if startup:
+                threading.Thread(target=_run_startup, args=(apps,), daemon=True).start()
+            if browser_url:
+                threading.Thread(target=webbrowser.open, args=(browser_url,), daemon=True).start()
+            yield
+
+    return Starlette(routes=routes, lifespan=lifespan)
+
+
+def main():
+    http.configure_console()
+    apps = registry.discover()
     for line in check_frontends(apps):
         print('  ⚠ 前端入口缺失（面板将无法加载）：%s' % line)
     if not apps:
         print('  ⚠ apps/ 下没有发现任何已启用的工具（检查 apps/*/app.json）')
 
     try:
-        server = http.make_server(HOST, PORT, router, static_mounts(apps), SERVER_VERSION)
+        family = socket.AF_INET6 if ':' in HOST else socket.AF_INET
+        listener = socket.create_server((HOST, PORT), family=family)
     except OSError as exc:
         print(http.port_error_hint(PORT, exc))
         sys.exit(1)
 
-    url = 'http://127.0.0.1:%d' % PORT
+    url = 'http://127.0.0.1:%d' % listener.getsockname()[1]
     banner = [
         '  ═══════════════════════════════════════════════',
         '   Toolbox 工具台 已启动（%d 个工具）' % len(apps),
         '    ➜ %s' % url,
-        '   ⚡ 点哪个按钮运行哪个功能，同一时刻只运行一个任务',
+        '   ⚡ 点击侧栏切换工具',
         '   ⏹ 按 Ctrl+C 停止服务',
         '  ═══════════════════════════════════════════════',
     ]
-    http.serve_forever(server, url, banner, before_serve=lambda: _run_startup(apps))
+    print('\n'.join(banner), flush=True)
+    browser_url = url if not os.environ.get('TOOLBOX_NO_BROWSER') else None
+    with listener:
+        config = uvicorn.Config(create_app(apps, browser_url=browser_url), loop='asyncio',
+                                http='h11', ws='none', timeout_graceful_shutdown=3)
+        uvicorn.Server(config).run(sockets=[listener])
 
 
 def _run_startup(apps) -> None:

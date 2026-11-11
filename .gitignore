@@ -9,6 +9,11 @@ __pycache__/
 # （美债种子缓存在 data/treasury/，需要随仓库提交，见下方说明）
 data/qrcode/*
 !data/qrcode/.gitignore
+data/agora/
+*.sqlite3*
+.env
+node_modules/
+test-results/
 
 # 旧版目录（升级过渡期保留，避免历史数据被误提交；可自行删除）
 QRcode/input/

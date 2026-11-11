@@ -20,7 +20,12 @@ ROOT = Path(SPECPATH).resolve().parent.parent        # packaging/windows/ -> 仓
 
 datas = []
 binaries = []
-hiddenimports = []
+hiddenimports = [
+    'apps.agora.backend.app',
+    'uvicorn.loops.asyncio',
+    'uvicorn.protocols.http.h11_impl',
+    'uvicorn.lifespan.on',
+]
 
 # 二维码批量生成依赖：生成脚本在运行时才被 import，静态分析看不到，需显式收集
 # （qrcode 走 Pillow 图片工厂，因此不需要 pypng）
@@ -33,7 +38,11 @@ for pkg in ('qrcode', 'PIL', 'openpyxl', 'et_xmlfile'):
 # 应用自带资源：公共内核、各工具（后端 + 前端 + 清单）、外壳前端与配置
 datas += [
     (str(ROOT / 'core'), 'core'),
-    (str(ROOT / 'apps'), 'apps'),
+    (str(ROOT / 'apps' / 'treasury'), 'apps/treasury'),
+    (str(ROOT / 'apps' / 'qrcode'), 'apps/qrcode'),
+    (str(ROOT / 'apps' / 'agora' / 'app.json'), 'apps/agora'),
+    (str(ROOT / 'apps' / 'agora' / 'frontend'), 'apps/agora/frontend'),
+    (str(ROOT / 'apps' / 'agora' / 'web' / 'dist'), 'apps/agora/web/dist'),
     (str(ROOT / 'hub' / 'static'), 'hub/static'),
     (str(ROOT / 'hub' / 'hub.json'), 'hub'),
     # 种子数据（只读）：首次启动由 apps/treasury/backend/store.py:ensure_seed()

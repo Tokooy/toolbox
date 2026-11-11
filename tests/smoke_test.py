@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Toolbox 冒烟测试（零第三方依赖）
+"""Toolbox 冒烟测试
 ===================================
 
-在临时数据目录里拉起真实的工具台服务，把「宿主外壳 + 两个工具」的核心链路跑一遍：
+在临时数据目录里拉起工具台服务，验证外壳与三个工具：
 
 * 宿主：``GET /``、``/api/health``、``/api/apps``、静态资源与目录穿越防护
 * 美债：``GET /api/treasury/data``（用仓库内置种子数据验证“有数据”分支）
 * 二维码：上传 Excel → 提交任务 → 轮询日志 → 取结果 → 拉图片 → 下载 Excel
+* Agora：应用面板、工作台页面、子路径 API 与同源写入
 
 用法（仓库根目录下）：
 
@@ -20,13 +21,18 @@
 
 import json
 import os
+import re
 import shutil
+import socket
 import sys
 import threading
 import time
 import urllib.error
 import urllib.request
 from pathlib import Path
+from urllib.parse import urljoin
+
+import uvicorn
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
@@ -54,15 +60,16 @@ def check(name: str, condition: bool, detail: str = ''):
         print('  ✗ %s %s' % (name, detail))
 
 
-def request(method: str, path: str, data: bytes | None = None, port: int | None = None):
+def request(method: str, path: str, data: bytes | None = None, port: int | None = None,
+            headers=None):
     """返回 ``(status, headers, body_bytes)``，4xx/5xx 不抛异常。"""
     url = 'http://127.0.0.1:%d%s' % (port or PORT, path)
-    req = urllib.request.Request(url, data=data, method=method)
+    req = urllib.request.Request(url, data=data, method=method, headers=headers or {})
     try:
         with urllib.request.urlopen(req, timeout=30) as resp:
-            return resp.status, dict(resp.headers), resp.read()
+            return resp.status, {key.title(): value for key, value in resp.headers.items()}, resp.read()
     except urllib.error.HTTPError as exc:
-        return exc.code, dict(exc.headers), exc.read()
+        return exc.code, {key.title(): value for key, value in exc.headers.items()}, exc.read()
 
 
 def json_of(method: str, path: str, data: bytes | None = None, port: int | None = None):
@@ -128,15 +135,16 @@ def main() -> int:
     global PORT
 
     apps = registry.discover()
-    check('发现应用清单', len(apps) >= 2, '实际 %d 个' % len(apps))
-    check('应用顺序与 id', [a.id for a in apps][:2] == ['treasury', 'qrcode'],
+    check('发现应用清单', len(apps) >= 3, '实际 %d 个' % len(apps))
+    check('应用顺序与 id', [a.id for a in apps][:3] == ['treasury', 'qrcode', 'agora'],
           str([a.id for a in apps]))
 
-    router = hub.build_router(apps, hub.load_config())
-    router.get('/', lambda req: req.send_file(paths.STATIC_DIR / 'index.html'))
-    server = http.make_server('127.0.0.1', 0, router, hub.static_mounts(apps), 'SmokeTest')
-    PORT = server.server_address[1]
-    threading.Thread(target=server.serve_forever, daemon=True).start()
+    listener = socket.create_server(('127.0.0.1', 0))
+    PORT = listener.getsockname()[1]
+    server = uvicorn.Server(uvicorn.Config(hub.create_app(apps, startup=False),
+                                           log_level='warning', access_log=False))
+    worker = threading.Thread(target=server.run, kwargs={'sockets': [listener]}, daemon=True)
+    worker.start()
     print('\n临时服务：http://127.0.0.1:%d  数据目录：%s\n' % (PORT, _TMP_DATA))
 
     # ---------------- 宿主 ----------------
@@ -149,10 +157,26 @@ def main() -> int:
     status, payload = json_of('GET', '/api/apps')
     listed = {app['id']: app for app in payload.get('apps', [])}
     check('GET /api/apps 下发应用清单',
-          status == 200 and 'treasury' in listed and 'qrcode' in listed, str(list(payload)))
+          status == 200 and {'treasury', 'qrcode', 'agora'} <= listed.keys(), str(listed.keys()))
     check('清单带前端入口 URL',
           listed.get('qrcode', {}).get('panel', '').startswith('/apps/qrcode/'),
           str(listed.get('qrcode')))
+
+    workspace = '/apps/agora/workspace/'
+    status, _, body = request('GET', workspace)
+    check('Agora 工作台页面', status == 200 and b'<div id="root">' in body, 'status=%s' % status)
+    script = re.search(rb'<script[^>]+src="([^"]+)"', body)
+    if script:
+        status, headers, _ = request('GET', urljoin(workspace, script[1].decode()))
+        check('Agora 前端构建资源', status == 200 and 'javascript' in headers.get('Content-Type', ''))
+    else:
+        check('Agora 前端构建资源', False, '请先构建 apps/agora/web')
+    status, payload = json_of('GET', workspace + 'api/bootstrap')
+    check('Agora API 读取设置', status == 200 and 'keys' in payload, 'status=%s' % status)
+    for origin, expected in (('http://127.0.0.1:%d' % PORT, 200), ('https://example.org', 403)):
+        status, _, _ = request('POST', workspace + 'api/settings', b'{}',
+                               headers={'Content-Type': 'application/json', 'Origin': origin})
+        check('Agora 写入来源 %s' % origin, status == expected, 'status=%s' % status)
 
     for asset in ('/static/index.html', '/static/vendor/vue.global.prod.js'):
         status, _, body = request('GET', asset)
@@ -272,7 +296,9 @@ def main() -> int:
     check_standalone(apps, '/api/qrcode/status', 'input_files')
 
     # ---------------- 汇总 ----------------
-    server.shutdown()
+    server.should_exit = True
+    worker.join(timeout=5)
+    listener.close()
     print('\n' + '=' * 56)
     if FAILED:
         print('  ✗ 失败 %d 项 / 通过 %d 项' % (len(FAILED), len(PASSED)))

@@ -64,7 +64,7 @@ toolbox/
 │   ├── linux/               install.sh / 启动.sh / environment.yml / icon.svg
 │   └── README.md            三种交付方式与数据目录约定
 │
-├── tests/smoke_test.py    冒烟测试：一条命令跑通宿主 + 两个工具 + 各自的独立运行
+├── tests/smoke_test.py    冒烟测试：一条命令验证宿主、三个工具及美债和二维码的独立入口
 └── README.md              使用说明（安装、运行、部署、FAQ）
 ```
 
@@ -91,15 +91,19 @@ core         ──不依赖──▶ 任何业务代码
 | `/apps/<id>/**` | 该工具自己的前端资源（`apps/<id>/frontend/`） |
 | `/api/apps` | 应用清单（外壳据此生成左侧功能按钮） |
 | `/api/health` | 健康检查（启动脚本用它判断服务是否已在运行） |
-| `/api/<id>/**` | 该工具的后端接口（`apps/<id>/backend/api.py`） |
+| `/api/<id>/**` | 同步工具的后端接口（`apps/<id>/backend/api.py`） |
+| `/apps/<id>/workspace/**` | 清单标记为 ASGI 的工作台与 API |
 
 接口前缀**处处一致**：工具台内是 `/api/treasury/data`，单独运行美债站点时也是
 `/api/treasury/data`，所以同一份前端面板两边都能用。
 
+Agora 的清单设置 `"asgi": true`。后端模块导出 FastAPI 应用 `app`，
+宿主负责其生命周期，前端使用同源工作台路径加载资源和 SSE。
+
 ### 4.2 后端契约（`app.json` 的 `backend` 指向的模块）
 
 ```python
-def register(router, ctx):   # 必填：router 已绑定 /api/<id> 前缀
+def register(router, ctx):   # 同步工具：router 已绑定 /api/<id> 前缀
     router.get('/data', handler)
 
 def on_startup(ctx):         # 可选：服务可访问之后执行的后台初始化（如首次拉数据）
@@ -198,7 +202,7 @@ export default {
 ## 七、验证
 
 ```bash
-# 冒烟测试：临时数据目录里跑通宿主 + 两个工具（零第三方依赖，除二维码生成需要 openpyxl）
+# 安装依赖并构建前端后，使用临时目录验证宿主和三个工具
 python tests/smoke_test.py
 ```
 

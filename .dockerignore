@@ -14,6 +14,10 @@ Thumbs.db
 # Python 缓存
 **/__pycache__/
 **/*.pyc
+**/node_modules/
+**/dist/
+**/test-results/
+**/.env
 
 # 冒烟测试的临时数据目录
 .smoke-*/
@@ -21,6 +25,8 @@ Thumbs.db
 # 用户数据不入镜像 —— 运行时用数据卷挂载到 /app/data
 # 注意：data/treasury/ 是内置的离线种子数据，必须保留，因此这里只排除 data/qrcode
 data/qrcode/
+data/agora/
+**/*.sqlite3*
 
 # 打包脚本本身不需要进运行镜像
 packaging/

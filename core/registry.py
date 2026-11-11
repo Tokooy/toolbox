@@ -19,8 +19,10 @@ Toolbox 的每个工具都是 ``apps/<id>/`` 下一个自洽的「前端 + 后�
 
 后端契约（``backend`` 指向的模块）：
 
-* ``register(router, ctx)``  必填：把本应用的接口注册到已绑好 ``/api/<id>`` 前缀的子路由；
+* ``register(router, ctx)``  同步工具必填：把本应用的接口注册到已绑好 ``/api/<id>`` 前缀的子路由；
 * ``on_startup(ctx)``        可选：宿主启动后的后台初始化（如首次拉取数据）。
+* ASGI 工具设置 ``"asgi": true``，后端模块导出 ``app``，由宿主挂载到
+  ``/apps/<id>/workspace/`` 并管理其生命周期。
 """
 
 import importlib
@@ -49,6 +51,7 @@ class App:
     backend: str = 'backend.api'
     frontend_entry: str = 'panel.js'
     frontend_style: str = 'panel.css'
+    asgi: bool = False
     manifest: dict = field(default_factory=dict)
 
     # ---------------- 路径 ----------------
@@ -114,6 +117,7 @@ def discover(apps_dir=None, only: str | None = None) -> list[App]:
             backend=data.get('backend', 'backend.api'),
             frontend_entry=data.get('frontend', {}).get('entry', 'panel.js'),
             frontend_style=data.get('frontend', {}).get('style', 'panel.css'),
+            asgi=data.get('asgi', False),
             manifest=data,
         )
         if only and app.id != only:
@@ -137,6 +141,8 @@ def load_backend(app: App):
 
 def mount_api(router, app: App) -> App | None:
     """把应用后端注册到宿主路由的 ``/api/<id>`` 子路由上。"""
+    if app.asgi:
+        return None
     module = load_backend(app)
     register = getattr(module, 'register', None)
     if register is None:
@@ -147,6 +153,8 @@ def mount_api(router, app: App) -> App | None:
 
 def startup(app: App):
     """调用应用的可选启动钩子；返回钩子是否被执行。"""
+    if app.asgi:
+        return False
     module = load_backend(app)
     hook = getattr(module, 'on_startup', None)
     if hook is None:

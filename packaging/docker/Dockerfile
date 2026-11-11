@@ -9,24 +9,33 @@
 #      docker build -f packaging/docker/Dockerfile -t toolbox .
 #
 #  运行（数据卷持久化，容器删了数据还在）：
-#      docker run -d --name toolbox -p 8080:8080 \
+#      docker run -d --name toolbox -p 127.0.0.1:8080:8080 \
 #        -v toolbox_data:/app/data toolbox
 #
-#  访问：http://<主机IP>:8080
+#  访问：http://127.0.0.1:8080
 #  迁移：在新机器上重新 build + run，把数据卷带过去即可（详见 README）
 # ============================================================
+FROM node:22-alpine AS agora-build
+WORKDIR /build
+COPY apps/agora/web/package*.json ./
+RUN npm ci --no-audit --no-fund
+COPY apps/agora/web/ ./
+RUN npm run build
+
 FROM python:3.12-slim
 
 # 镜像内固定代码根目录（core.paths 以「非打包」模式工作：代码根 == /app）
 WORKDIR /app
 
-# 运行依赖只有二维码生成需要；core / hub / 美债看板都是纯 Python 标准库
-RUN pip install --no-cache-dir "qrcode[pil]" pillow openpyxl
+COPY requirements.txt ./
+COPY apps/agora/backend/requirements.txt apps/agora/backend/
+RUN pip install --no-cache-dir -r requirements.txt
 
 # 代码：公共内核 + 各工具（前端/后端）+ 工具台外壳
 COPY core/ core/
 COPY apps/ apps/
 COPY hub/ hub/
+COPY --from=agora-build /build/dist/ apps/agora/web/dist/
 
 # 内置美债历史缓存的「种子」：容器首次启动时由 apps/treasury/backend/store.py:ensure_seed()
 # 复制到数据根（/app/data/treasury），因此命名卷与绑定挂载都能离线开箱即用

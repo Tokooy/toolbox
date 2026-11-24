@@ -79,10 +79,11 @@ def register(router, ctx):
         if path is None:
             req.send_error(404, 'Not Found')
             return
-        content_type = ('application/vnd.openxmlformats-officedocument.'
-                        'spreadsheetml.sheet' if path.suffix == '.xlsx'
-                        else 'text/html; charset=utf-8')
-        req.send_file(path, content_type, filename=path.name)
+        if path.suffix == '.xlsx':
+            req.send_file(path, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                          filename=path.name)
+            return
+        req.send_bytes(service.html_download(path), 'text/html; charset=utf-8', filename=path.name)
 
     def upload(req):
         filename = req.query_one('filename', '未命名.xlsx')

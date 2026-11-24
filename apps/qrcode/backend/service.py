@@ -12,22 +12,23 @@
     ├── output/     # 生成的 HTML / Excel
     └── qrcodes/    # 单张二维码 PNG 缓存
 
-网页上看到的二维码预览，是把生成好的 HTML 里的 ``file://`` 图片地址改写成
-``/api/qrcode/image/<文件名>`` 后得到的，因此预览与原 HTML 完全一致。
+下载的 HTML 内嵌二维码图片，网页预览通过 ``/api/qrcode/image/<文件名>`` 加载相同图片。
 """
 
 import re
 import shutil
 from datetime import datetime
+from html import unescape
 from pathlib import Path
+from urllib.parse import unquote
 
 from core import paths
 
 from . import generator
 
 __all__ = ['LEGACY_DIR', 'data_root', 'dirs', 'ensure_dirs', 'input_files',
-           'build_result', 'save_upload', 'safe_name', 'image_path', 'output_path',
-           'MAX_UPLOAD']
+           'build_result', 'html_download', 'save_upload', 'safe_name', 'image_path',
+           'output_path', 'MAX_UPLOAD']
 
 # 旧版（重构前）本应用的数据目录：QRcode/{input,output,qrcodes}
 LEGACY_DIR = 'QRcode'
@@ -36,47 +37,11 @@ ALLOWED_SUFFIX = ('.xlsx', '.xls')
 
 _SAFE_NAME_RE = re.compile(r'[^0-9A-Za-z._\-\u4e00-\u9fff（）()【】\[\] ]')
 
-_PREVIEW_CSS = (
-    '<style>'
-    'body{margin:0;padding:18px;background:#f2f4f8;'
-    'font-family:-apple-system,"Microsoft YaHei",sans-serif;}'
-    'h1{text-align:center;font-size:18px;color:#1f2937;}'
-    'p{text-align:center;color:#6b7280;}'
-    'table{border-collapse:separate;display:block;}'
-    'table,tbody{width:100%;}'
-    'tr{display:flex;flex-wrap:wrap;justify-content:center;gap:14px;margin-bottom:14px;width:100%;}'
-    'td{width:auto !important;height:auto !important;border:1px solid #e5e7eb !important;'
-    'border-radius:12px;padding:12px !important;background:#fff;'
-    'box-shadow:0 2px 8px rgba(0,0,0,.06);}'
-    'img{display:block;margin:0 auto;}'
-    '</style>'
-)
-
-# 按容器宽度动态计算每行数量（侧栏收起/展开、窗口缩放时自动重排）
-_PREVIEW_JS = (
-    '<script>'
-    '(function(){'
-    'function relayout(){'
-    'var table=document.querySelector("table");'
-    'if(!table)return;'
-    'var tds=Array.prototype.slice.call(table.querySelectorAll("td"));'
-    'if(!tds.length)return;'
-    'var w=table.getBoundingClientRect().width;'
-    'var per=Math.max(1,Math.floor((w+14)/340));'
-    'var frag=document.createDocumentFragment();'
-    'for(var i=0;i<tds.length;i+=per){'
-    'var tr=document.createElement("tr");'
-    'tds.slice(i,i+per).forEach(function(td){tr.appendChild(td);});'
-    'frag.appendChild(tr);'
-    '}'
-    'table.innerHTML="";'
-    'table.appendChild(frag);'
-    '}'
-    'window.addEventListener("load",relayout);'
-    'window.addEventListener("resize",relayout);'
-    'relayout();'
-    '})();'
-    '</script>'
+# 兼容以绝对文件 URL 引用 PNG 的旧版导出。
+_RESULT_IMAGE_RE = re.compile(
+    r'<img src="(?:file://[^"]*/(?P<legacy>[^/"]+)|'
+    r'data:image/png;base64,[^"]+" data-filename="(?P<filename>[^"]+))"'
+    r'[^>]* alt="(?P<code>[^"]*)"'
 )
 
 
@@ -105,16 +70,19 @@ def safe_name(name: str) -> str:
 
 
 def image_path(name: str) -> Path | None:
+    # 生成的文件名可含任意 Unicode 字母和数字。
+    if generator.image_name(Path(name).stem) != name:
+        return None
     return _inside(dirs().images, name)
 
 
 def output_path(name: str) -> Path | None:
-    return _inside(dirs().output, name)
+    return _inside(dirs().output, safe_name(name))
 
 
 def _inside(directory: Path, name: str) -> Path | None:
-    """把用户传入的文件名安全地解析到目录内（防目录穿越）。"""
-    target = (directory / safe_name(name)).resolve()
+    """把已校验的文件名安全地解析到目录内（防目录穿越）。"""
+    target = (directory / name).resolve()
     root = directory.resolve()
     return target if target.parent == root and target.is_file() else None
 
@@ -179,24 +147,54 @@ def result_summary() -> dict:
     }
 
 
-def build_result(prefix: str) -> dict:
-    """最近一次生成的结果：可嵌入的预览 HTML + 输出文件列表 + 结构化条目。
+def _result_images(html: str) -> list[tuple[str, str]]:
+    return [
+        (unescape(match['code']), match['filename'] or match['legacy'])
+        for match in _RESULT_IMAGE_RE.finditer(html)
+    ]
 
-    ``prefix`` 是本应用的接口前缀（如 ``/api/qrcode``），用于把预览里的图片地址
-    改写成当前服务可访问的 URL——独立运行与工具台内运行因此共用同一份代码。
-    """
+
+def html_download(path: Path) -> bytes:
+    """直接返回新导出，或者用缓存图片将旧导出转换为离线 HTML。"""
+    content = path.read_bytes()
+    if b'<img src="file://' not in content:
+        return content
+
+    html = content.decode('utf-8')
+    codes = []
+    qr_map = {}
+    for code, filename in _result_images(html):
+        image = image_path(unquote(filename))
+        if image is None:
+            return content
+        codes.append(code)
+        qr_map[code] = image
+    if not codes:
+        return content
+
+    columns = re.search(r'，每行 (\d+) 个', html)
+    per_row = int(columns[1]) if columns else generator.PER_ROW
+    try:
+        return generator.export_html(codes, qr_map, per_row).encode('utf-8')
+    except FileNotFoundError:  # 生成新结果时可能正在清理旧缓存
+        return content
+
+
+def build_result(prefix: str) -> dict:
+    """最近一次生成的预览 HTML、下载链接和二维码条目。"""
     html_path = _latest('*_qrcodes.html')
     xlsx_path = _latest('*_qrcodes.xlsx')
 
     html = None
+    items = []
     if html_path is not None:
-        html = html_path.read_text(encoding='utf-8')
-        html = re.sub(r'src="file://[^"]*/([^/"]+)"', r'src="%s/image/\1"' % prefix, html)
-        html = re.sub(r'<title>[^<]*</title>', '<title>批量二维码预览</title>', html)
-        html = html.replace('</head>', _PREVIEW_CSS + '</head>')
-        html = html.replace('</body>', _PREVIEW_JS + '</body>')
-        # 每行数量已由脚本动态计算，去掉原「每行 N 个」的固定说明
-        html = re.sub(r'，每行 \d+ 个', '', html)
+        images = _result_images(html_path.read_text(encoding='utf-8'))
+        items = [{'image': f'{prefix}/image/{name}', 'code': code} for code, name in images]
+        html = generator.render_html(
+            [generator.HtmlImage(item['code'], item['image']) for item in items],
+            per_row=None,
+            title='批量二维码预览',
+        )
 
     outputs = []
     for path in (html_path, xlsx_path):
@@ -206,11 +204,6 @@ def build_result(prefix: str) -> dict:
                 'kind': 'html' if path.suffix == '.html' else 'xlsx',
                 'url': '%s/download?file=%s' % (prefix, path.name),
             })
-
-    items = []
-    if html:
-        pattern = re.compile(r'src="(%s/image/[^"]+)"[^>]*alt="([^"]*)"' % re.escape(prefix))
-        items = [{'image': m.group(1), 'code': m.group(2)} for m in pattern.finditer(html)]
 
     return {
         'has_result': bool(html_path),

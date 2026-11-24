@@ -7,7 +7,7 @@
 输出：
 
 * ``<data_root>/qrcodes/<编号>.png``        单张二维码（300×300，纠错等级 H）
-* ``<data_root>/output/YYYY-MM-DD_qrcodes.html``   网页表格（每行 3 个）
+* ``<data_root>/output/YYYY-MM-DD_qrcodes.html``   内嵌二维码的离线网页（每行最多 3 个）
 * ``<data_root>/output/YYYY-MM-DD_qrcodes.xlsx``   Excel 表格（图片嵌入单元格）
 
 每次运行前自动清理上次生成的旧文件，因此输出目录永远只有本次结果。
@@ -16,9 +16,12 @@
 """
 
 import sys
+from base64 import b64encode
 from datetime import datetime
+from html import escape
 from pathlib import Path
 from typing import NamedTuple
+from urllib.parse import quote
 
 import qrcode
 from openpyxl import Workbook, load_workbook
@@ -27,14 +30,15 @@ from openpyxl.styles import Alignment
 from openpyxl.utils import get_column_letter, range_boundaries
 from PIL import Image
 
-__all__ = ['Dirs', 'GeneratorError', 'resolve_dirs', 'run', 'clean_outputs',
-           'find_input_excel', 'read_codes', 'generate_images', 'write_html', 'write_excel',
-           'QR_SIZE', 'PER_ROW']
+__all__ = ['Dirs', 'GeneratorError', 'HtmlImage', 'resolve_dirs', 'run', 'clean_outputs',
+           'find_input_excel', 'read_codes', 'generate_images', 'render_html', 'export_html',
+           'write_html', 'write_excel', 'QR_SIZE', 'PER_ROW']
 
 QR_SIZE = 300          # 二维码图片像素尺寸（正方形）
-PER_ROW = 3            # 每行二维码数量
-HTML_CELL_W = 320      # HTML 单元格宽度 px
-HTML_CELL_H = 380      # HTML 单元格高度 px（含下方编号标签）
+PER_ROW = 3            # 每行二维码数量上限
+HTML_CARD_PADDING = 12
+HTML_CARD_WIDTH = QR_SIZE + 2 * (HTML_CARD_PADDING + 1)
+HTML_GAP = 24
 HEADER = '二维码编号'   # Excel 中约定的编号列名
 
 
@@ -49,6 +53,12 @@ class Dirs(NamedTuple):
     input: Path
     output: Path
     images: Path
+
+
+class HtmlImage(NamedTuple):
+    code: str
+    src: str
+    filename: str = ''
 
 
 def resolve_dirs(data_root) -> Dirs:
@@ -175,54 +185,92 @@ def generate_images(codes: list[str], dirs: Dirs) -> dict[str, Path]:
     return result
 
 
-def write_html(codes: list[str], qr_map: dict[str, Path], output_path: Path,
-               per_row: int = PER_ROW) -> None:
-    """生成 HTML 表格页面（每行 ``per_row`` 个二维码）。"""
-    rows_html = []
-    for start in range(0, len(codes), per_row):
-        cells = []
-        for code in codes[start:start + per_row]:
-            # 用标准 file URI（file:///…，正斜杠跨平台）引用图片，浏览器可直接打开
-            cells.append(
-                '        <td style="width:%dpx; height:%dpx; text-align:center; '
-                'vertical-align:bottom; border:1px solid #ddd; padding:10px;">\n'
-                '          <img src="%s" width="%d" height="%d" alt="%s" '
-                'style="display:block; margin:0 auto;">\n'
-                '          <div style="margin-top:6px; font-size:13px; '
-                'font-family:monospace; word-break:break-all;">%s</div>\n'
-                '        </td>'
-                % (HTML_CELL_W, HTML_CELL_H, qr_map[code].as_uri(), QR_SIZE, QR_SIZE,
-                   _escape(code), _escape(code)))
-        rows_html.append('      <tr>\n' + '\n'.join(cells) + '\n      </tr>')
+def render_html(images: list[HtmlImage], *, per_row: int | None = PER_ROW,
+                title: str = '二维码列表') -> str:
+    """渲染居中且可换行的二维码列表。预览可按可用宽度排列。"""
+    max_width = 'none'
+    if per_row is not None:
+        max_width = f'{per_row * HTML_CARD_WIDTH + (per_row - 1) * HTML_GAP}px'
 
-    html = """<!DOCTYPE html>
+    cards = []
+    for image in images:
+        label = escape(image.code)
+        # 下载文件保留缓存文件名，供服务端构建使用 HTTP 图片地址的预览。
+        filename = f' data-filename="{escape(image.filename)}"' if image.filename else ''
+        cards.append(
+            '  <figure>\n'
+            f'    <img src="{escape(image.src)}"{filename} '
+            f'width="{QR_SIZE}" height="{QR_SIZE}" alt="{label}">\n'
+            f'    <figcaption>{label}</figcaption>\n'
+            '  </figure>'
+        )
+
+    cards_html = '\n'.join(cards)
+    return f"""<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<title>二维码列表</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{escape(title)}</title>
 <style>
-body { font-family: -apple-system, "Microsoft YaHei", sans-serif; padding: 20px; background: #f5f5f5; }
-h1 { font-size: 20px; margin-bottom: 16px; }
-table { border-collapse: collapse; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
-td { border: 1px solid #ddd; }
+body {{
+  margin: 0;
+  padding: 24px 16px;
+  background: #f5f5f5;
+  font-family: -apple-system, "Microsoft YaHei", sans-serif;
+  text-align: center;
+}}
+h1 {{ margin: 0 0 8px; font-size: 20px; }}
+p {{ margin: 0 0 24px; }}
+.qr-list {{
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: {HTML_GAP}px;
+  max-width: {max_width};
+  margin: 0 auto;
+}}
+figure {{
+  box-sizing: border-box;
+  width: {HTML_CARD_WIDTH}px;
+  max-width: 100%;
+  margin: 0;
+  padding: {HTML_CARD_PADDING}px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  background: #fff;
+  break-inside: avoid;
+}}
+img {{ display: block; max-width: 100%; height: auto; margin: 0 auto; }}
+figcaption {{ margin-top: 8px; font: 13px monospace; overflow-wrap: anywhere; }}
 </style>
 </head>
 <body>
 <h1>批量二维码</h1>
-<p>共 %d 个编号，每行 %d 个</p>
-<table>
-%s
-</table>
+<p>共 {len(images)} 个编号</p>
+<main class="qr-list">
+{cards_html}
+</main>
 </body>
-</html>""" % (len(codes), per_row, '\n'.join(rows_html))
+</html>"""
 
+
+def export_html(codes: list[str], qr_map: dict[str, Path], per_row: int = PER_ROW) -> str:
+    """内嵌 PNG，使导出页面可脱离应用与缓存离线打开。"""
+    images = []
+    for code in codes:
+        path = qr_map[code]
+        encoded = b64encode(path.read_bytes()).decode('ascii')
+        images.append(HtmlImage(code, 'data:image/png;base64,' + encoded, quote(path.name)))
+    return render_html(images, per_row=per_row)
+
+
+def write_html(codes: list[str], qr_map: dict[str, Path], output_path: Path,
+               per_row: int = PER_ROW) -> None:
+    """生成内嵌二维码图片的 HTML 文件。"""
+    html = export_html(codes, qr_map, per_row)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(html, encoding='utf-8')
-
-
-def _escape(text: str) -> str:
-    return (text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
-            .replace('"', '&quot;'))
 
 
 def write_excel(codes: list[str], qr_map: dict[str, Path], output_path: Path,

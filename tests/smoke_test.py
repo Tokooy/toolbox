@@ -29,6 +29,7 @@ import threading
 import time
 import urllib.error
 import urllib.request
+from base64 import b64decode
 from pathlib import Path
 from urllib.parse import urljoin
 
@@ -286,6 +287,11 @@ def main() -> int:
             ok = status == 200 and len(body) > 0
             if output['kind'] == 'xlsx':
                 ok = ok and body[:2] == b'PK'
+            elif output['kind'] == 'html':
+                embedded = re.findall(rb'<img src="data:image/png;base64,([A-Za-z0-9+/=]+)"', body)
+                check('下载的 HTML 内嵌所有二维码图片',
+                      len(embedded) == len(codes) and b'src="file://' not in body
+                      and all(b64decode(src).startswith(b'\x89PNG\r\n\x1a\n') for src in embedded))
             check('下载 %s' % output['name'], ok, 'status=%s' % status)
 
     status, payload = json_of('GET', '/api/qrcode/result')
